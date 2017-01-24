@@ -8,8 +8,8 @@ Both issues were patched by Rapid7 in Weekly Release 4.12.0-2016091401
 A Metasploit Framework module that exploits these issues has been submitted for
 inclusion at <https://github.com/rapid7/metasploit-framework/pull/7341>
 
-Metasploit Web UI's `config.action_dispatch.cookies_serializer` is set to `:hybrid`
------------------------------------------------------------------------------------
+CVE-2016-1000243 Metasploit Web UI's `config.action_dispatch.cookies_serializer` is set to `:hybrid`
+----------------------------------------------------------------------------------------------------
 
 * OVE ID: OVE-20160904-0001
 * Private disclosure date: 2016-09-04
@@ -48,8 +48,8 @@ References:
 * `[0]` <http://blog.bigbinary.com/2014/12/23/migrating-existing-session-cookies-while-upgrading-to-rails-4-1-and-above.html>
 * `[1]` <https://www.rapid7.com/db/modules/exploit/multi/http/rails_secret_deserialization>
 
-Metasploit Weekly Release Static `secret_key_base` pre-auth RCE
----------------------------------------------------------------
+CVE-2016-1000244 Metasploit Weekly Release Static `secret_key_base` pre-auth RCE
+--------------------------------------------------------------------------------
 
 * OVE ID: OVE-20160904-0002
 * Private disclosure date: 2016-09-04
