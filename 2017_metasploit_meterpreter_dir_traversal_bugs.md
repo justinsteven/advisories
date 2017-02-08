@@ -123,7 +123,7 @@ opportunity to induce directory traversal on the machine running Metasploit.
 
 ### POC
 
-1. Patch the Windows Meterpreter source code to produce a malicious Meterpreter
+1\. Patch the Windows Meterpreter source code to produce a malicious Meterpreter
 
 We will produce a malicious Windows Meterpreter that returns malformed
 responses to Metasploit.
@@ -178,7 +178,7 @@ You should then feel deeply ashamed about iterating over the bytes in a
 When it does work, you should make a mental note to learn how to C like a
 grown-up.
 
-2. Build Meterpreter
+2\. Build Meterpreter
 
 See <http://buffered.io/posts/building-meterpreter-is-easy/> and
 <https://github.com/rapid7/metasploit-payloads/tree/master/c/meterpreter> for
@@ -188,7 +188,7 @@ Copy the built binaries (within `metasploit-payloads/c/meterpreter/output/*/`)
 to `metasploit-framework/data/meterpreter/` to make them available to
 Metasploit.
 
-3. Generate a stageless Windows Meterpreter
+3\. Generate a stageless Windows Meterpreter
 
 Be sure to include the stdapi extension. This will result in our patched code
 being baked right in to the payload.
@@ -206,13 +206,13 @@ Final size of exe file: 1618944 bytes
 Saved as: /home/justin/work/metasploitsploit/windows_x64_meterpreter_reverse_tcp.exe
 ```
 
-4. Unbuild Meterpreter
+4\. Unbuild Meterpreter
 
 Having generated a stageless Windows Meterpreter inclusive of the stdapi
 extension, we no longer need the patched Meterpreter binaries within
 Metasploit. Scrub them from `metasploit-framework/data/meterpreter/`
 
-5. Get a session
+5\. Get a session
 
 Start Metasploit, start a stageless Meterpreter handler:
 
@@ -241,7 +241,7 @@ session:
 [*] Meterpreter session 1 opened (172.18.0.5:4444 -> 172.17.24.85:49271) at 2016-12-29 21:50:19 +1000
 ```
 
-6. Create a malicious directory for download
+6\. Create a malicious directory for download
 
 We know that the patched Meterpreter will replace the character `Z` with `/`
 within filenames. To trigger the vulnerability, we'll create a directory layout
@@ -305,7 +305,7 @@ C:\Users\Justin>echo doot doot >> \tmp\doot.txt
 C:\Users\Justin>
 ```
 
-7. Trigger the bug
+7\. Trigger the bug
 
 Before triggering the bug, the file doesn't exist on the victim's machine:
 
@@ -494,7 +494,7 @@ iterated over. Files are downloaded to locations as per `path` elements in the
 
 ### POC
 
-1. Patch the Windows Meterpreter source code to produce a malicious Meterpreter
+1\. Patch the Windows Meterpreter source code to produce a malicious Meterpreter
 
 We will produce a malicious Meterpreter that returns malformed responses to
 Metasploit.
@@ -532,7 +532,7 @@ index aa53e4f..5027a7f 100644
 
 ```
 
-2. Build Meterpreter
+2\. Build Meterpreter
 
 See <http://buffered.io/posts/building-meterpreter-is-easy/> and
 <https://github.com/rapid7/metasploit-payloads/tree/master/c/meterpreter> for
@@ -542,7 +542,7 @@ Copy the built binaries (within `metasploit-payloads/c/meterpreter/output/*/`)
 to `metasploit-framework/data/meterpreter/` to make them available to
 Metasploit.
 
-3. Generate a stageless Windows Meterpreter
+3\. Generate a stageless Windows Meterpreter
 
 Be sure to include the stdapi extension. This will result in our patched code
 being baked right in to the payload.
@@ -560,13 +560,13 @@ Final size of exe file: 1618944 bytes
 Saved as: /home/justin/work/metasploitsploit/windows_x64_meterpreter_reverse_tcp.exe
 ```
 
-4. Unbuild Meterpreter
+4\. Unbuild Meterpreter
 
 Having generated a stageless Windows Meterpreter inclusive of the stdapi
 extension, we no longer need the patched Meterpreter binaries within
 Metasploit. Scrub them from `metasploit-framework/data/meterpreter/`
 
-5. Get a session
+5\. Get a session
 
 Start Metasploit, start a stageless Meterpreter handler:
 
@@ -591,7 +591,7 @@ session:
 [*] Meterpreter session 1 opened (172.18.0.2:4444 -> 172.17.24.85:49181) at 2017-02-08 19:21:13 +1000
 ```
 
-6. Set up the attacker's filesystem
+6\. Set up the attacker's filesystem
 
 We know that the patched Meterpreter will return
 `c:/../../../../../../../../../../../../../../tmp/doot` to the
@@ -619,7 +619,7 @@ C:\Users\Justin>mkdir \tmp
 C:\Users\Justin>echo doot doot >> \tmp\doot
 ```
 
-7. Trigger the bug
+7\. Trigger the bug
 
 Before triggering the bug, note that `/tmp/doot` does not exist on the victim's
 machine:
@@ -832,7 +832,7 @@ the writing of arbitrary files in `/home/justin/`
 
 ### POC
 
-1. Patch the Windows Meterpreter source code to produce a malicious Meterpreter
+1\. Patch the Windows Meterpreter source code to produce a malicious Meterpreter
 
 We will produce a malicious Meterpreter that returns malformed responses to
 Metasploit.
@@ -877,7 +877,7 @@ index a9c5c98..3dfa24e 100644
                         pFile = pFile->pNext;
 ```
 
-2. Build Meterpreter
+2\. Build Meterpreter
 
 See <http://buffered.io/posts/building-meterpreter-is-easy/> and
 <https://github.com/rapid7/metasploit-payloads/tree/master/c/meterpreter> for
@@ -887,7 +887,7 @@ Copy the built binaries (within `metasploit-payloads/c/meterpreter/output/*/`)
 to `metasploit-framework/data/meterpreter/` to make them available to
 Metasploit.
 
-3. Generate a stageless Windows Meterpreter
+3\. Generate a stageless Windows Meterpreter
 
 Be sure to include the extapi extension. This will result in our patched code
 being baked right in to the payload (though this ends up being useless in the
@@ -906,7 +906,7 @@ Final size of exe file: 1354752 bytes
 Saved as: /home/justin/work/metasploitsploit/windows_x64_meterpreter_reverse_tcp.exe
 ```
 
-4. Do not unbuild Meterpreter
+4\. Do not unbuild Meterpreter
 
 Since we patched extapi, we need to leave the patched build of Meterpreter
 within Metasploit's data directory. Even for a stageless payload that has
@@ -921,7 +921,7 @@ An attacker could patch their copy of Meterpreter to just throw away any copy
 of the extapi library fed to it by Metasploit. This is an exercise left for the
 reader.
 
-5. Get a session
+5\. Get a session
 
 Start Metasploit, start a stageless Meterpreter handler:
 
@@ -952,7 +952,7 @@ session:
 [*] Meterpreter session 1 opened (172.18.0.5:4444 -> 172.17.24.85:50469) at 2017-01-03 22:36:54 +1000
 ```
 
-6. Create a malicious directory for download
+6\. Create a malicious directory for download
 
 We know that the patched Meterpreter will inform Metasploit that the file
 `C:/doot/doot/..` has been copied to the clipboard.
@@ -985,7 +985,7 @@ C:\Users\Justin>mkdir \doot\.ssh
 C:\Users\Justin>echo An evil SSH public key >> \doot\.ssh\authorized_keys
 ```
 
-7. Trigger the bug
+7\. Trigger the bug
 
 Before triggering the bug, note that `authorized_keys` on the victim's machine
 contains an innocent SSH public key:
