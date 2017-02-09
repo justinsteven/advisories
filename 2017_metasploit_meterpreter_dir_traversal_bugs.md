@@ -11,7 +11,7 @@ Metasploit. Directory traversal is described at
 [CWE-23](https://cwe.mitre.org/data/definitions/23.html).
 
 * CVE-2017-5228: Rapid7 Metasploit Meterpreter stdapi `Dir.download()` Directory Traversal
-* CVE-2017-5231: Rapid7 Metasploit stdapi `CommandDispatcher.cmd_download()` Recursive Globbing Arbitrary File Write
+* CVE-2017-5231: Rapid7 Metasploit Meterpreter stdapi `CommandDispatcher.cmd_download()` Recursive Globbing Arbitrary File Write
 * CVE-2017-5229: Rapid7 Metasploit Meterpreter extapi `Clipboard.parse_dump()` Directory Traversal
 
 By running a specially modified version of Meterpreter, a "victim's" machine
@@ -29,7 +29,7 @@ file to `/etc/cron.d/` to gain code execution as root.
 The Overall CVSSv3 score for these issues was deemed by Rapid7 to be 4.6
 (`CVSS:3.0/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:L/E:P/RL:O/RC:C/CR:L/IR:L/AR:L/MAV:N/MAC:H/MPR:N/MUI:R/MS:U/MC:H/MI:H/MA:L`)
 
-Rapid7 has released patches for all of these issues as of 8 Feb 2017. Framework
+Rapid7 has released updated versions for all of these issues as of 8 Feb 2017. Framework
 users should update to version 4.13.21. Pro users should update to version
 4.13.0-2017020701.
 
