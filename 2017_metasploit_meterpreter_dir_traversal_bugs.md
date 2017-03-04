@@ -67,7 +67,7 @@ CVE-2017-5228 Rapid7 Metasploit Meterpreter stdapi `Dir.download()` Directory Tr
 ---------------------------------------------------------------------------------------
 
 * Public disclosure date: 8 Feb 2017
-* Vendor advisory: <https://community.rapid7.com/docs/DOC-3575>
+* Vendor advisory: <https://community.rapid7.com/community/infosec/blog/2017/03/01/multiple-vulnerabilities-affecting-four-rapid7-products>
 * Affected versions: 4.13.20 and prior
 
 Metasploit's `Rex::Post::Meterpreter::Extensions::Stdapi::Fs::Dir.download()`,
@@ -393,7 +393,7 @@ CVE-2017-5231: Rapid7 Metasploit stdapi `CommandDispatcher.cmd_download()` Recur
 -------------------------------------------------------------------------------------------------------------------
 
 * Public disclosure date: 8 Feb 2017
-* Vendor advisory: <https://community.rapid7.com/docs/DOC-3575>
+* Vendor advisory: <https://community.rapid7.com/community/infosec/blog/2017/03/01/multiple-vulnerabilities-affecting-four-rapid7-products>
 * Affected versions: 4.13.20 and prior
 
 Metasploit's
@@ -687,7 +687,7 @@ CVE-2017-5229 Rapid7 Metasploit Meterpreter extapi `Clipboard.parse_dump()` Dire
 -----------------------------------------------------------------------------------------------
 
 * Public disclosure date: 8 Feb 2017
-* Vendor advisory: <https://community.rapid7.com/docs/DOC-3575>
+* Vendor advisory: <https://community.rapid7.com/community/infosec/blog/2017/03/01/multiple-vulnerabilities-affecting-four-rapid7-products>
 * Affected versions: 4.13.20 and prior
 
 Metasploit's
