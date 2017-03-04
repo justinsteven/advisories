@@ -48,7 +48,7 @@ CVE-2017-TBA RVM automatically loads environment variables from files in $PWD
 
 * Private disclosure date: 2016-10-28
 * Public disclosure date: 2017-02-15
-* Vendor advisory: TBA
+* Vendor advisory: <https://rvm.io/blog/2017/02/rvm-1-29-0>
 * Affected versions: <=1.28.0
 
 RVM, by default, hooks `cd` and automatically detects the presence of certain
@@ -125,7 +125,7 @@ CVE-2017-TBA RVM command injection when automatically loading environment variab
 
 * Private disclosure date: 2016-10-29
 * Public disclosure date: 2017-02-15
-* Vendor advisory: TBA
+* Vendor advisory: <https://rvm.io/blog/2017/02/rvm-1-29-0>
 * Affected versions: <=1.28.0
 
 RVM, by default, hooks `cd` and automatically detects the presence of certain
@@ -215,7 +215,7 @@ CVE-2017-TBA RVM automatically executes hooks located in $PWD
 
 * Private disclosure date: 2016-10-29
 * Public disclosure date: 2017-02-15
-* Vendor advisory: TBA
+* Vendor advisory: <https://rvm.io/blog/2017/02/rvm-1-29-0>
 * Affected versions: <=1.28.0
 
 RVM, by default, hooks `cd` and automatically executes various auxiliary hooks
@@ -255,7 +255,7 @@ CVE-2017-TBA RVM automatically installs gems as specified by files in $PWD
 
 * Private disclosure date: 2016-10-31
 * Public disclosure date: 2017-02-15
-* Vendor advisory: TBA
+* Vendor advisory: <https://rvm.io/blog/2017/02/rvm-1-29-0>
 * Affected versions: <=1.28.0
 
 RVM, by default, hooks `cd` and automatically parses a file named
@@ -362,7 +362,7 @@ CVE-2017-TBA RVM automatically does "bundle install" on a Gemfile specified by .
 
 * Private disclosure date: 2016-11-07
 * Public disclosure date: 2017-02-15
-* Vendor advisory: TBA
+* Vendor advisory: <https://rvm.io/blog/2017/02/rvm-1-29-0>
 * Affected versions: <=1.28.0
 
 RVM, by default, hooks `cd` and automatically parses a file named
