@@ -45,8 +45,10 @@ The project did not notify me that a fix had been published despite there being
 an agreed-upon coordinated disclosure date (at 90 days or upon fix, whichever
 came first)
 
-CVE-2017-TODO Visual Studio Code automatically loads unsafe Workspace Settings
-------------------------------------------------------------------------------
+Microsoft also did not allocate a CVE as requested.
+
+Visual Studio Code automatically loads unsafe Workspace Settings
+----------------------------------------------------------------
 
 * OVE ID: OVE-20170302-0001
 * Private disclosure date: 2016-12-06

@@ -1,11 +1,13 @@
 The following issues constitute separate arbitrary command execution
 vulnerabilities in RVM <=1.28.0
 
-* CVE-2017-TBA RVM automatically loads environment variables from files in $PWD
-* CVE-2017-TBA RVM command injection when automatically loading environment variables from files in $PWD
-* CVE-2017-TBA RVM automatically executes hooks located in $PWD
-* CVE-2017-TBA RVM automatically installs gems as specified by files in $PWD
-* CVE-2017-TBA RVM automatically does "bundle install" on a Gemfile specified by .versions.conf in $PWD
+* RVM automatically loads environment variables from files in $PWD
+* RVM command injection when automatically loading environment variables from files in $PWD
+* RVM automatically executes hooks located in $PWD
+* RVM automatically installs gems as specified by files in $PWD
+* RVM automatically does "bundle install" on a Gemfile specified by .versions.conf in $PWD
+
+All of the issues were allocated CVE-2017-1000037
 
 Users should upgrade to RVM version 1.29.0
 
@@ -43,8 +45,8 @@ Other scenarios are left as an exercise for the reader.
 
 All examples below were captured using RVM 1.27.0
 
-CVE-2017-TBA RVM automatically loads environment variables from files in $PWD
------------------------------------------------------------------------------
+RVM automatically loads environment variables from files in $PWD
+----------------------------------------------------------------
 
 * Private disclosure date: 2016-10-28
 * Public disclosure date: 2017-02-15
@@ -120,8 +122,8 @@ Command execution as uid=1000(rvm) gid=1000(rvm) groups=1000(rvm) via PS1
 rvm@e6aeaf6d79ec:~/poc$
 ```
 
-CVE-2017-TBA RVM command injection when automatically loading environment variables from files in $PWD
-------------------------------------------------------------------------------------------------------
+RVM command injection when automatically loading environment variables from files in $PWD
+-----------------------------------------------------------------------------------------
 
 * Private disclosure date: 2016-10-29
 * Public disclosure date: 2017-02-15
@@ -210,8 +212,8 @@ uid=1000(rvm) gid=1000(rvm) groups=1000(rvm)
 rvm@e6aeaf6d79ec:~/poc$
 ```
 
-CVE-2017-TBA RVM automatically executes hooks located in $PWD
--------------------------------------------------------------
+RVM automatically executes hooks located in $PWD
+------------------------------------------------
 
 * Private disclosure date: 2016-10-29
 * Public disclosure date: 2017-02-15
@@ -250,8 +252,8 @@ Command execution as uid=1000(rvm) gid=1000(rvm) groups=1000(rvm)
 rvm@e6aeaf6d79ec:~/poc$
 ```
 
-CVE-2017-TBA RVM automatically installs gems as specified by files in $PWD
---------------------------------------------------------------------------
+RVM automatically installs gems as specified by files in $PWD
+-------------------------------------------------------------
 
 * Private disclosure date: 2016-10-31
 * Public disclosure date: 2017-02-15
@@ -357,8 +359,8 @@ rvm@e6aeaf6d79ec:~/poc$ cat /tmp/poc_output
 Arbitrary ruby code execution as uid=1000(rvm) gid=1000(rvm) groups=1000(rvm)
 ```
 
-CVE-2017-TBA RVM automatically does "bundle install" on a Gemfile specified by .versions.conf in $PWD
------------------------------------------------------------------------------------------------------
+RVM automatically does "bundle install" on a Gemfile specified by .versions.conf in $PWD
+----------------------------------------------------------------------------------------
 
 * Private disclosure date: 2016-11-07
 * Public disclosure date: 2017-02-15

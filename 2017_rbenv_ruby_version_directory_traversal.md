@@ -18,8 +18,8 @@ based on an application's needs.
 
 All examples below were captured using rbenv version 1.1.0-2-g4f8925a
 
-CVE-2017-TBA rbenv Ruby specification directory traversal
----------------------------------------------------------
+CVE-2017-1000047 rbenv Ruby specification directory traversal
+-------------------------------------------------------------
 
 * OVE ID: OVE-20170303-0004
 * Public disclosure date: 2017-03-04
