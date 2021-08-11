@@ -55,3 +55,10 @@ Listed in chronological order. Click on any title to read the full advisory.
 * Disclosure date: 2020-10-31
 * CVE: CVE-2020-7384
 * Versions of Metasploit's `msfvenom` payload generator, when given a crafted APK file to use as a payload template, were vulnerable to a command injection vulnerability in the handling of the crafted APK file.
+
+## [Visual Studio Code `.ipynb` Jupyter Notebook XSS (Arbitrary File Read)](2021_vscode_ipynb_xss_arbitrary_file_read.md)
+
+* Disclosure date: 2021-08-12
+* CVE: Not assigned
+* OVE: OVE-20210809-0001
+* Visual Studio Code 1.59.0 ships with the Jupyter Notebook extension by default. An XSS vulnerability in the rendering of a crafted Jupyter Notebook file allows for theft of local files.
