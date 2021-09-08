@@ -62,3 +62,9 @@ Listed in chronological order. Click on any title to read the full advisory.
 * CVE: Not assigned
 * OVE: OVE-20210809-0001
 * Visual Studio Code 1.59.0 ships with the Jupyter Notebook extension by default. An XSS vulnerability in the rendering of a crafted Jupyter Notebook file allows for theft of local files.
+
+## [GitHub Actions `check-spelling` community workflow - `GITHUB_TOKEN` leakage via `advice.txt` symlink](2021_github_actions_checkspelling_token_leak_via_advice_symlink.md)
+
+* Disclosure date: 2021-09-09
+* CVE: CVE-2021-32724
+* The `check-spelling` GitHub actions community workflow can be made to leak a `GITHUB_TOKEN` short-lived API key within a Pull Request comment by sending a Pull Request containing a symlink called `.github/actions/advice.txt` which points to `/proc/self/environ`.
