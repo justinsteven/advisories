@@ -8,6 +8,11 @@ Blog: <https://www.justinsteven.com/>
 
 Listed in reverse chronological order. Click any title to read the full advisory.
 
+## [Git honours embedded bare repos, and exploitation via `core.fsmonitor` in a directory's `.git/config` affects IDEs, shell prompts and Git pillagers](2022_git_buried_bare_repos_and_fsmonitor_various_abuses.md)
+
+* Disclosure date: 2022-03-17
+* A body of work regarding Git and Git integrations. Git can be shown to honour buried bare repos, allowing a malicious repo to be smuggled within a regular repo. The per-repo configuration directive `core.fsmonitor` can be shown to be dangerous. Software such as IDEs, shell prompt decorations and Git repo pillaging tools can be shown to be vulnerable to various impacts including remote code execution and/or arbitrary file write.
+
 ## [GitHub Actions `check-spelling` community workflow - `GITHUB_TOKEN` leakage via `advice.txt` symlink](2021_github_actions_checkspelling_token_leak_via_advice_symlink.md)
 
 * Disclosure date: 2021-09-09
