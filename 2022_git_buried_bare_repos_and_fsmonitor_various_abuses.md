@@ -46,11 +46,47 @@ Driver Tom published an [advisory](https://drivertom.blogspot.com/2021/08/git.ht
 
 Finally, [@vladimir_metnew](https://twitter.com/vladimir_metnew) published [RCE in GitHub Desktop < 2.9.4](https://github.com/Metnew/write-ups/tree/main/rce-github-desktop-2.9.3) in February 2022. By combining the `openlocalrepo` URL handler scheme with some creative delivery mechanisms for a Git repo with a malicious [filter](https://git-scm.com/book/en/v2/Customizing-Git-Git-Attributes) configuration, RCE with some user interaction could be achieved in GitHub Desktop <2.9.4.
 
+Update: Since publishing this document, a [post to the Git mailing list by Glen Choo](https://lore.kernel.org/git/kl6lsfqpygsj.fsf@chooglen-macbookpro.roam.corp.google.com/) linked to [a blog post by wtm](https://offensi.com/2019/12/16/4-google-cloud-shell-bugs-explained-bug-3/) from 2019 which describes exploitation via buried bare repos using hooks instead of `core.fsmonitor`.
+
 # Whose fault is this anyway?
 
 In the early days of this research, I believed that exploitation via configuration directives like `core.fsmonitor` isn't the fault of Git, and this sentiment runs throughout much of this document. I believed that Git offers many "dangerous" configuration knobs, such as `core.fsmonitor`, to be configured in the context of an individual Git repo's `.git/config` file. I believed that these knobs are features, not bugs, and that a tool which opportunistically runs `git` against a Git repo, if that Git repo is not trustworthy, is the vulnerable component.
 
 During my discussions with the Git security team I got the strong sense that they agreed with my position. They also said that if any safety rails around dangerous items in `.git/` are to be instituted in Git, they will need to be done via public discussion on the Git mailing list, and that the publication of this document can assist not only that process, but can also help vendors and users of Git-integrated software to be aware of the dangers of opportunistically executing Git against untrustworthy repos.
+
+Update: Since publishing this document, [Glen Choo posted to the Git mailing list](https://lore.kernel.org/git/kl6lsfqpygsj.fsf@chooglen-macbookpro.roam.corp.google.com/) to discuss protections that can be introduced against buried bare repos. Related to the topic of dangerous things in `.git/`, Glen links to a [prior post to the Git mailing list](https://lore.kernel.org/git/20171003123239.lisk43a2goxtxkro@sigill.intra.peff.net/) from 2017 which said:
+
+
+```plain
+> Suppose that I add the following to .git/config in a repository on a
+> shared computer:
+> 
+> 	[pager]
+> 		log = rm -fr /
+> 		fsck = rm -fr /
+> 
+> ("rm -fr /" is of course a placeholder here.)
+> 
+> I then tell a sysadmin that git commands are producing strange output
+> and I am having trouble understanding what is going on.  They may run
+> "git fsck" or "git log"; in either case, the output is passed to the
+> pager I configured, allowing me to run an arbitrary command using the
+> sysadmin's credentials.
+
+I know you probably didn't mean this to be an exhaustive list, but there
+are really a ton of config options that can result in executing
+arbitrary commands. External diff, textconv, ssh commands, and so on.
+
+I don't think that changes your point any, but it's something to keep in
+mind when evaluating solutions:
+
+  - if individual options need to be annotated as unsafe, there's a high
+    risk of missing an option (or introducing a new one incorrectly)
+
+  - any schemes which reduce functionality (e.g., by disallowing certain
+    options in repo config by default) are going to affect a lot of
+    people
+```
 
 During the disclosure process with affected vendors, some vendors said that they believe this is a problem with Git and it should be handled there, and that running `git` against an untrustworthy repo should not be a dangerous operation. While I disagreed with this, I understood the position and I appreciate that it would be convenient for a fix to be comprehensively introduced upstream in Git. While I'm worried it's not likely or possible for Git to be made safe when operating on an untrustworthy repo, it may be able to be done in time. In the meantime, this is an issue with which software vendors must be concerned.
 
@@ -336,6 +372,8 @@ The next section describes OVE-20210718-0001, and then the remainder of this doc
 * Also tested: [2.35.1](https://github.com/git/git/tree/v2.35.1) on Linux
 
 Not patched or mitigated as of the time of publication. There are currently no plans to change this behaviour of Git.
+
+Update: Since publishing this document, [Glen Choo posted to the Git mailing list](https://lore.kernel.org/git/kl6lsfqpygsj.fsf@chooglen-macbookpro.roam.corp.google.com/) to discuss protections that can be introduced against buried bare repos. This conversation is ongoing as of the time of writing this update.
 
 ## Overview
 
