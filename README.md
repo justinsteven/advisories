@@ -8,6 +8,12 @@ Blog: <https://www.justinsteven.com/>
 
 Listed in reverse chronological order. Click any title to read the full advisory.
 
+## [Amazon Linux "log4j hotpatch" <1.3-5 local privilege escalation to root (race condition)](2022_amazon_log4j-cve-2021-44228-hotpatch_local_privesc.md)
+
+* Disclosure date: 2022-06-16
+* CVE: CVE-2022-33915
+* Various packagings of Amazon Linux's log4j hotpatch, such as `log4j-cve-2021-44228-hotpatch-1.1.16`, were vulnerable to local privilege escalation via race condition. The vulnerable version would unsafely observe the EUID and EGID of a process before executing its underlying binary allowing local privilege escalation to root.
+
 ## [Git honours embedded bare repos, and exploitation via `core.fsmonitor` in a directory's `.git/config` affects IDEs, shell prompts and Git pillagers](2022_git_buried_bare_repos_and_fsmonitor_various_abuses.md)
 
 * Disclosure date: 2022-03-17
