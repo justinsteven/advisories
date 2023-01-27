@@ -20,6 +20,8 @@ git status          # <-- Dangerous
 
 Git currently has no plans to change the behaviour that allows bare repos to be embedded within regular repos.
 
+Update: Git 2.38.0 introduced an opt-in mitigation - see discussion below. **Users should strongly consider setting the `safe.bareRepository` configuration directive to "explicit"** to protect against exploitation via embedded bare repos.
+
 The final sections of the document discuss **vulnerabilities in software that integrates with Git**.
 
 Several **IDEs** (Integrated Development Environments) are demonstrated as being vulnerable. When opening a directory containing a malicious `.git/` directory, many IDEs will opportunistically execute `git` to show the status of the repo. In doing this they will honour `.git/config` and so can be made to **execute arbitrary code**.
@@ -108,8 +110,11 @@ Finally, the existence of bug collisions (listed above) indicated to me that oth
 * March 2022 - GitHacker fixed the RCE
 * March 2022 - fish [mitigated](https://github.com/fish-shell/fish-shell/security/advisories/GHSA-pj5f-6vxj-f5mq) the exploitability via `core.fsmonitor` by overriding its value when executing `git`.
 * 17 March 2022 - publication of this document
+* 3 October 2022 - Git 2.38.0 released ([Release notes](https://lore.kernel.org/git/xmqqmtacu8bw.fsf@gitster.g/), [GitHub Announcement](https://github.blog/2022-10-03-highlights-from-git-2-38/))
 
 Regarding both the ability to bury bare Git repos in regular repos and the abuse potential of `core.fsmonitor`, the Git security team indicated that no fixes or mitigations are currently planned. They said that if changes are to be made, they'll be best discussed and planned on the public Git development mailing list.
+
+Update: Git 2.38.0, released October 2022, introduces opt-in mitigations for buried bare repos.
 
 # Git
 
@@ -375,6 +380,8 @@ Not patched or mitigated as of the time of publication. There are currently no p
 
 Update: Since publishing this document, [Glen Choo posted to the Git mailing list](https://lore.kernel.org/git/kl6lsfqpygsj.fsf@chooglen-macbookpro.roam.corp.google.com/) to discuss protections that can be introduced against buried bare repos. This conversation is ongoing as of the time of writing this update.
 
+Update: Git 2.38.0 introduced an opt-in mitigation for this issue, see discussion below.
+
 ## Overview
 
 A Git repo can contain a bare repo that is embedded or "buried" within a subdirectory. The embedded bare repo can be added and committed to the "parent" repo. The parent repo can be `push`ed, `pull`ed and `clone`d as a regular Git repo. Upon running a `git` command from the directory containing the embedded bare repo, or a child directory thereof, the command will be run using the bare repo as the Git directory.
@@ -391,6 +398,44 @@ Running `git` commands from subdirectories of a cloned Git repo is a natural thi
 If a victim user clones a repo that has a malicious bare repo embedded within a subdirectory, and then runs any Git operation from that "poisoned" subdirectory (or any child directory thereof), the `config` file within the embedded bare repo will be honoured by `git`. This leads to arbitrary code execution through configuration directives such as `core.fsmonitor` (discussed above).
 
 Note that if the bare repo is at the root of the parent repo, `git` will not honour the bare repo. The bare repo MUST be within a subdirectory of the parent repo.
+
+## Update: Git 2.38.0 introduced opt-in mitigation via `safe.bareRepository`
+
+On 3 October 2022, Git 2.38.0 was released ([Release notes](https://lore.kernel.org/git/xmqqmtacu8bw.fsf@gitster.g/), [GitHub Announcement](https://github.blog/2022-10-03-highlights-from-git-2-38/)). This version introduced an opt-in mitigation called [safe.bareRepository](https://git-scm.com/docs/git-config#Documentation/git-config.txt-safebareRepository) to prevent the consumption of bare repos (including those embedded in regular repos).
+
+By default, Git >= 2.38.0 honours bare repos within regular repos, which can lead to arbitrary code execution when running many Git commands from a crafted subdirectory of a cloned repo:
+
+```plain
+root@d229ca042bcf:/tmp/tmp.9bfcafpLAM/repo# git -v
+git version 2.39.1
+
+root@d229ca042bcf:/tmp/tmp.9bfcafpLAM/repo# git status
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+
+root@d229ca042bcf:/tmp/tmp.9bfcafpLAM/repo# cd poison/
+
+root@d229ca042bcf:/tmp/tmp.9bfcafpLAM/repo/poison# git status
+Pwned as uid=0(root) gid=0(root) groups=0(root)
+Pwned as uid=0(root) gid=0(root) groups=0(root)
+On branch main
+nothing to commit, working tree clean
+```
+
+By setting `safe.bareRepository`, bare repositories are no longer honoured by Git, protecting against this case:
+
+```plain
+root@d229ca042bcf:/tmp/tmp.9bfcafpLAM/repo/poison# git config --global safe.bareRepository explicit
+
+root@d229ca042bcf:/tmp/tmp.9bfcafpLAM/repo/poison# git status
+fatal: cannot use bare repository '/tmp/tmp.9bfcafpLAM/repo/poison' (safe.bareRepository is 'explicit')
+```
+
+The Git documentation suggests "If you do not use bare repositories in your workflow, then it may be beneficial to set `safe.bareRepository` to explicit in your global config"
+
+Neither the release notes nor the GitHub announcement gave any acknowledgement for raising this issue with them. Thanks I hate it.
 
 ## Detail
 
@@ -2144,6 +2189,8 @@ Pwned as uid=0(root) gid=0(root) groups=0(root)
 ## Addendum - Chaining with OVE-20210718-0001
 
 OVE-20210718-0001 can be used to embed a bare repo within a regular repo. If a user's prompt is configured to opportunistically parse the state of a Git repo, then cloning a malicious repo and using `cd` to change directory into the directory containing the bare repo can trigger arbitrary code execution.
+
+Update: On 3 October 2022, Git 2.38.0 was released. It introduced an opt-in mitigation called [safe.bareRepository](https://git-scm.com/docs/git-config#Documentation/git-config.txt-safebareRepository) which prevents the consumption of bare repos (including those embedded in regular repos). Setting it to `explicit` would prevent exploitation of shell prompts in this specific way.
 
 Taking Oh My Zsh as an example, prepare and host a malicious repo:
 
