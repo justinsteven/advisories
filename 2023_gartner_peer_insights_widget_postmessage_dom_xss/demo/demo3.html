@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="referrer" content="never">
+    <meta name="referrer" content="no-referrer">
+    <title>Gartner Widget Demo - after 14 January 2023</title>
+</head>
+<body>
+    <div>
+        This webpage sources a local (vendored) copy of the <a href="https://www.gartner.com/reviews/public/Widget/js/widget.js">Gartner Peer Insights Widget JavaScript file</a> (taken between 14 January 2023 and 26 January 2023) and populates a demo widget.
+    </div>
+    <div id="widget"></div>
+    <script type="text/javascript"
+        src="widget3.js"></script>
+    <script type="text/javascript">
+    GartnerPI_Widget({
+        size: "small",
+        theme: "dark",
+        sourcingLink: "https://gtnr.it/2uhygyuE",
+        widget_id: "OWMzM2QzN2EtNWUwYS0iRJRJFJFIRDgtNWQ4ZjgyNDIyMmY3",
+        container: document.getElementById("widget")
+    })
+    </script>
+</body>
+</html>

