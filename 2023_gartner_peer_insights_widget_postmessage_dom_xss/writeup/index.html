@@ -258,7 +258,7 @@
         The Widget is <a href="https://blogs.gartner.com/reviews-pages/widget-user-guide/#integrate">installed on a website</a> by:
     </p>
     <ol>
-        <li>Doing <code>&lt;script src="<a href="https://www.gartner.com/reviews/public/Widget/js/widget.js">"https://www.gartner.com/reviews/public/Widget/js/widget.js"</a>&gt;</code>; then</li>
+        <li>Doing <code>&lt;script src=<a href="https://www.gartner.com/reviews/public/Widget/js/widget.js">"https://www.gartner.com/reviews/public/Widget/js/widget.js"</a>&gt;</code>; then</li>
         <li>Calling the <code>GartnerPI_Widget()</code> function to instantiate the widget</li>
     </ol>
     <h4>Google Dorks</h4>
@@ -742,6 +742,9 @@ C = function (e) {
 
     <p>
         I originally recommended that Gartner's Peer Insights Widget code should not simply check that "gartner.com" appears anywhere within the message sender's origin. It should check that the origin's hostname part ends with "gartner.com", or preferably nail it down to the exact origin that is expected to be sending messages to the Widget.
+    </p>
+    <p>
+        Update: On reflection, the above suggestion is misleading. I should have said that the handler should check that the origin's hostname part is exactly "gartner.com" or ends with ".gartner.com"
     </p>
     <p>
         I also said that doing only this will leave websites vulnerable to any XSS on a *.gartner.com website. That is to say, a *.gartner.com XSS vulnerability could be used to do a cross-site postMessage to vendor websites with malicious <code>e</code> attributes that achieve DOM-based XSS. Since the postMessage in such a case would be coming from a *.gartner.com site, it might be considered trustworthy by the message handler (see above suggestion). I suggested that a more robust Widget design could be to dynamically and safely construct DOM elements and stitch them together, rather than concatenating postMessage values into a wad of HTML and slamming it into the Widget's innerHTML.
