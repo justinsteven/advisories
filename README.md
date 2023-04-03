@@ -8,6 +8,13 @@ Blog: <https://www.justinsteven.com/>
 
 Listed in reverse chronological order. Click any title to read the full advisory.
 
+## [Gartner Peer Insights Widget postMessage DOM XSS](2023_gartner_peer_insights_widget_postmessage_dom_xss/)
+
+* Disclosure date: 2023-02-03
+* The [Gartner Peer Insights Widget](https://blogs.gartner.com/reviews-pages/widget-user-guide/) had a DOM XSS vulnerability that could be triggered by a postMessage message from any site that contained "gartner.com" in its hostname (e.g. https://gartner.com.attacker.com). This affected sites such as Black Kite, Gradle, LogRhythm, ReversingLabs, SentinelOne, Synopsys, Tata Communications, Veeam, Vodafone and more.
+* Hosted advisory: <https://kindergartner.com.ring0.lol>
+* Video discussion: <https://youtu.be/fCNsZU0uqVs>
+
 ## [Amazon Linux "log4j hotpatch" <1.3-5 local privilege escalation to root (race condition)](2022_amazon_log4j-cve-2021-44228-hotpatch_local_privesc.md)
 
 * Disclosure date: 2022-06-16
