@@ -5,7 +5,7 @@
     It is intended to be viewed in a web browser where the domain name contains the string "gartner.com"
     (e.g. "gartner.com.writeup.example")
 
-    A copy of this document is hosted at https://gartner.com.ring0.lol/
+    A copy of this document is hosted at https://kindergartner.com.ring0.lol/
 -->
 
 <head>
@@ -71,7 +71,7 @@
         </p>
     </div>
     <div class="alert alert-warning" role="alert">
-        <strong>Important:</strong> This website is <strong>not affiliated</strong> with Gartner. If you are looking for the Gartner website, go to <a href="https://www.gartner.com">www.gartner.com</a>
+        <strong>Important:</strong> This website is <strong>not affiliated</strong> with Gartner. If you are looking for the Gartner website, go to <a href="https://www.gartner.com">www.gartner.com</a>. All trademarks, logos and brand names are the property of their respective owners. All company, product and service names used in this website are for identification purposes only. Use of these names, trademarks and brands does not imply endorsement.
     </div>
     <p>
         This document discusses the <a href="https://blogs.gartner.com/reviews-pages/widget-user-guide/">Gartner Peer Insights Widget</a> and a vulnerability in it that made many websites vulnerable to DOM XSS via <code>Window.postMessage()</code>.
@@ -222,7 +222,7 @@
             14 January 2023 - I provided Gartner with several bypasses for the patch. This analysis is described below. I also reminded them that I'm still waiting to hear if they can provide a reward for the work while still allowing me to publicly disclose the issue.
         </li>
         <li>
-            21 January 2023 - Gartner confirmed that they would not offer a bug bounty reward if I publicly disclose the issue. This is the last email I'd receive from Gartner.
+            21 January 2023 - Gartner confirmed that they would not offer a bug bounty reward if I publicly disclose the issue. This is the last email I'd receive from Gartner until after publication.
         </li>
         <li>
             21 January 2023 - I declined the offer of a bug bounty reward.
@@ -455,7 +455,7 @@ C = function (e) {
         If you'd like to see how the Proof of Concept is implemented, <a href="https://techcrunch.com/2021/10/15/f12-isnt-hacking-missouri-governor-threatens-to-prosecute-local-journalist-for-finding-exposed-state-data/">commit a crime</a> using Right Click &rarr; View Source.
     </p>
     <p>
-        This POC will only work if you are viewing this page from a website that contains "gartner.com" somewhere in its origin.
+        This POC will only work if you are viewing this page from a website that contains the string "gartner.com" somewhere in its origin.
     </p>
 
     <form id="pocForm">
